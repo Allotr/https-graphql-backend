@@ -9,6 +9,8 @@ export class EnvLoader {
         const variablesToLoad: Partial<EnvObject> = {
             MONGO_DB_ENDPOINT: undefined,
             DB_NAME: undefined,
+            REDIS_ENDPOINT: undefined,
+            REDIS_PORT: undefined,
             IS_HTTPS: undefined,
             SSL_CRT_FILE: undefined,
             SSL_KEY_FILE: undefined,
