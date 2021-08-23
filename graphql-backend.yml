@@ -1,0 +1,10 @@
+version: 1.0
+provider:
+  name: openfaas
+  gateway: https://openfaas.allotr.eu
+functions:
+  graphql-backend:
+    lang: node-typescript-express
+    handler: ./graphql-backend
+    image: rafaelpernil/graphql-backend:latest
+
