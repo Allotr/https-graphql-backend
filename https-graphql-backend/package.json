@@ -1,7 +1,7 @@
 {
-  "name": "graphql-test-server",
+  "name": "allotr-https-graphql-backend",
   "version": "1.0.0",
-  "description": "A GraphQL testing server with Queries and Mutations",
+  "description": "A GraphQL server with Queries and Mutations",
   "main": "handler.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 0",
