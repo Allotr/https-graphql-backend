@@ -7,6 +7,10 @@ export class EnvLoader {
     private constructor() {
         this.loadedVariables = {} as EnvObject;
         const variablesToLoad: Partial<EnvObject> = {
+            GOOGLE_CLIENT_ID: undefined,
+            GOOGLE_CLIENT_SECRET: undefined,
+            SESSION_SECRET: undefined,
+            REDIRECT_URL: undefined,
             MONGO_DB_ENDPOINT: undefined,
             DB_NAME: undefined,
             REDIS_ENDPOINT: undefined,
