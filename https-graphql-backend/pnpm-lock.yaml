@@ -2,12 +2,14 @@ lockfileVersion: 5.3
 
 specifiers:
   '@graphql-codegen/typescript-mongodb': ^2.1.0
+  '@graphql-tools/schema': ^8.1.2
+  '@graphql-tools/utils': ^8.1.1
   '@types/express': ^4.17.12
   '@types/express-session': ^1.17.4
   '@types/lodash': ^4.14.170
   '@types/passport': ^1.0.7
   '@types/passport-google-oauth20': ^2.0.9
-  allotr-graphql-schema-types: 0.0.7
+  allotr-graphql-schema-types: 0.0.9
   connect-mongo: ^4.5.0
   cors: ^2.8.5
   cpy-cli: ^3.1.1
@@ -27,10 +29,12 @@ specifiers:
 
 dependencies:
   '@graphql-codegen/typescript-mongodb': 2.1.2_graphql@15.5.1
+  '@graphql-tools/schema': 8.1.2_graphql@15.5.1
+  '@graphql-tools/utils': 8.1.2_graphql@15.5.1
   '@types/express-session': 1.17.4
   '@types/passport': 1.0.7
   '@types/passport-google-oauth20': 2.0.9
-  allotr-graphql-schema-types: 0.0.7
+  allotr-graphql-schema-types: 0.0.9
   connect-mongo: 4.5.0
   cors: 2.8.5
   express: 4.17.1
@@ -661,6 +665,16 @@ packages:
       - supports-color
     dev: false
 
+  /@graphql-tools/merge/8.0.3_graphql@15.5.1:
+    resolution: {integrity: sha512-lVMyW9cREs+nQYbUvMaaqSl+pRCezl2RafNMFi/04akjvOtjVefdi7n3pArpSqPhLHPJDyQRlI8CK8cmOZ9jTA==}
+    peerDependencies:
+      graphql: ^14.0.0 || ^15.0.0
+    dependencies:
+      '@graphql-tools/utils': 8.1.2_graphql@15.5.1
+      graphql: 15.5.1
+      tslib: 2.3.1
+    dev: false
+
   /@graphql-tools/optimize/1.0.1_graphql@15.5.1:
     resolution: {integrity: sha512-cRlUNsbErYoBtzzS6zXahXeTBZGPVlPHXCpnEZ0XiK/KY/sQL96cyzak0fM/Gk6qEI9/l32MYEICjasiBQrl5w==}
     peerDependencies:
@@ -681,6 +695,18 @@ packages:
       tslib: 2.3.1
     transitivePeerDependencies:
       - supports-color
+    dev: false
+
+  /@graphql-tools/schema/8.1.2_graphql@15.5.1:
+    resolution: {integrity: sha512-rX2pg42a0w7JLVYT+f/yeEKpnoZL5PpLq68TxC3iZ8slnNBNjfVfvzzOn8Q8Q6Xw3t17KP9QespmJEDfuQe4Rg==}
+    peerDependencies:
+      graphql: ^14.0.0 || ^15.0.0
+    dependencies:
+      '@graphql-tools/merge': 8.0.3_graphql@15.5.1
+      '@graphql-tools/utils': 8.1.2_graphql@15.5.1
+      graphql: 15.5.1
+      tslib: 2.3.1
+      value-or-promise: 1.0.10
     dev: false
 
   /@graphql-tools/utils/8.1.2_graphql@15.5.1:
@@ -794,11 +820,27 @@ packages:
       '@types/express': 4.17.13
     dev: false
 
+  /@types/prop-types/15.7.4:
+    resolution: {integrity: sha512-rZ5drC/jWjrArrS8BR6SIr4cWpW09RNTYt9AMZo3Jwwif+iacXAqgVjm0B0Bv/S1jhDXKHqRVNCbACkJ89RAnQ==}
+    dev: false
+
   /@types/qs/6.9.7:
     resolution: {integrity: sha512-FGa1F62FT09qcrueBA6qYTrJPVDzah9a+493+o2PCXsesWHIn27G98TsSMs3WPNbZIEj4+VJf6saSFpvD+3Zsw==}
 
   /@types/range-parser/1.2.4:
     resolution: {integrity: sha512-EEhsLsD6UsDM1yFhAvy0Cjr6VwmpMWqFBCb9w07wVugF7w9nfajxLuVmngTIpgS6svCnm6Vaw+MZhoDCKnOfsw==}
+
+  /@types/react/17.0.19:
+    resolution: {integrity: sha512-sX1HisdB1/ZESixMTGnMxH9TDe8Sk709734fEQZzCV/4lSu9kJCPbo2PbTRoZM+53Pp0P10hYVyReUueGwUi4A==}
+    dependencies:
+      '@types/prop-types': 15.7.4
+      '@types/scheduler': 0.16.2
+      csstype: 3.0.8
+    dev: false
+
+  /@types/scheduler/0.16.2:
+    resolution: {integrity: sha512-hppQEBDmlwhFAXKJX2KnWLYu5yMfi91yazPb2l+lbJiwW+wdo1gNeRA+3RgNSO39WYX2euey41KEwnqesU2Jew==}
+    dev: false
 
   /@types/serve-static/1.13.10:
     resolution: {integrity: sha512-nCkHGI4w7ZgAdNkrEu0bv+4xNV/XDqW+DydknebMOQwkpDGx8G+HTlj7R7ABI8i8nKxVw0wtKPi1D+lPOkh4YQ==}
@@ -833,12 +875,12 @@ packages:
       indent-string: 4.0.0
     dev: true
 
-  /allotr-graphql-schema-types/0.0.7:
-    resolution: {integrity: sha512-SfoLwKDx4jNKc57ydloC1PW6WZa8EBLVVGBHZpAWZsvNA0HbCGCIE2XhBM6PMxUobUQNo2GKi7HfNPavigKwxQ==}
+  /allotr-graphql-schema-types/0.0.9:
+    resolution: {integrity: sha512-4L66+6OU1NNZ8YI6dgVfyCUcraRja81npAfEBJ/eetElhDJ4/SAScOpSMwFggKguXYl6hApC8kbOxEc/beQlfQ==}
     dependencies:
       '@graphql-codegen/typescript-mongodb': 2.1.2_graphql@15.5.1
+      '@types/react': 17.0.19
       graphql: 15.5.1
-      mongodb: 4.1.1
     transitivePeerDependencies:
       - graphql-tag
       - supports-color
@@ -1367,6 +1409,10 @@ packages:
     resolution: {integrity: sha512-1eAtFWdIubi6T4XPy6ei9iUFoKpUkIF971QLN8lIvvvwueI65+Nw5haMNKUwfJxabqlIIDODJKGrQ66gxC0PbQ==}
     dependencies:
       node-fetch: 2.6.1
+    dev: false
+
+  /csstype/3.0.8:
+    resolution: {integrity: sha512-jXKhWqXPmlUeoQnF/EhTtTl4C9SnrxSH/jZUih3jmO6lBKr99rP3/+FmrMj4EFpOXzMtXHAZkd3x0E6h6Fgflw==}
     dev: false
 
   /debug/2.6.9:
@@ -3402,6 +3448,11 @@ packages:
       spdx-correct: 3.1.1
       spdx-expression-parse: 3.0.1
     dev: true
+
+  /value-or-promise/1.0.10:
+    resolution: {integrity: sha512-1OwTzvcfXkAfabk60UVr5NdjtjJ0Fg0T5+B1bhxtrOEwSH2fe8y4DnLgoksfCyd8yZCOQQHB0qLMQnwgCjbXLQ==}
+    engines: {node: '>=12'}
+    dev: false
 
   /vary/1.1.2:
     resolution: {integrity: sha1-IpnwLG3tMNSllhsLn3RSShj2NPw=}
