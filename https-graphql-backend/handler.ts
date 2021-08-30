@@ -6,14 +6,16 @@ import schema from "./src/graphql/schemasMap";
 import { EnvLoader } from "./src/utils/env-loader";
 import { graphqlHTTP } from 'express-graphql';
 import { MongoDBSingleton } from "./src/utils/mongodb-singleton";
+import { initializeGooglePassport, isLoggedIn } from "./src/auth/google-passport";
 
 async function handle(event: any, context: any, cb: any) {
   // When using graphqlHTTP this is not being executed
 }
 
-function onExpressServerCreated(expressServer: core.Express) {
+function onExpressServerCreated(app: core.Express) {
   // Create GraphQL HTTP server
-  expressServer.use(graphqlHTTP({ schema, graphiql: true }) as any);
+  initializeGooglePassport(app);
+  app.use("/graphql", isLoggedIn, graphqlHTTP(req => ({ schema, graphiql: true, context: req })));
 }
 
 async function onExpressServerListen(server: https.Server | http.Server) {
