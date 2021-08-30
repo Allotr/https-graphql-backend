@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@graphql-codegen/typescript-mongodb": "^2.1.0",
-    "allotr-graphql-schema-types": "0.0.9",
+    "allotr-graphql-schema-types": "0.0.10",
     "@types/express-session": "^1.17.4",
     "@types/passport": "^1.0.7",
     "@graphql-tools/schema": "^8.1.2",

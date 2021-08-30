@@ -25,6 +25,7 @@ function initializeGooglePassport(app: express.Express) {
     const {
         GOOGLE_CLIENT_ID,
         GOOGLE_CLIENT_SECRET,
+        GOOGLE_CALLBACK_URL,
         MONGO_DB_ENDPOINT,
         SESSION_SECRET,
         REDIRECT_URL } = EnvLoader.getInstance().loadedVariables;
@@ -51,7 +52,7 @@ function initializeGooglePassport(app: express.Express) {
             {
                 clientID: GOOGLE_CLIENT_ID,
                 clientSecret: GOOGLE_CLIENT_SECRET,
-                callbackURL: "/auth/google/redirect",
+                callbackURL: GOOGLE_CALLBACK_URL,
                 passReqToCallback: false
             },
             async (accessToken, refreshToken, profile, done) => {
@@ -75,6 +76,8 @@ function initializeGooglePassport(app: express.Express) {
                         pushURLs: []
                     };
                     await db.collection<UserDbObject>('users').insertOne(userToCreate)
+                    await db.collection<UserDbObject>('users').createIndex({ username: "text", name: "text", surname: "text" })
+
                     done(null, userToCreate);
                 }
             })

@@ -9,8 +9,11 @@ export class EnvLoader {
         const variablesToLoad: Partial<EnvObject> = {
             GOOGLE_CLIENT_ID: undefined,
             GOOGLE_CLIENT_SECRET: undefined,
+            GOOGLE_CALLBACK_URL: undefined,
             SESSION_SECRET: undefined,
             REDIRECT_URL: undefined,
+            VAPID_PRIVATE_KEY: undefined,
+            VAPID_PUBLIC_KEY: undefined,
             MONGO_DB_ENDPOINT: undefined,
             DB_NAME: undefined,
             REDIS_ENDPOINT: undefined,
