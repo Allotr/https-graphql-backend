@@ -26,7 +26,7 @@ export const UserResolvers: Resolvers = {
         $text: { $search: args.query ?? "" }
       };
 
-      const options = {
+      const options: any = {
         projection: {
           _id: 1, username: 1, name: 1, surname: 1
         }

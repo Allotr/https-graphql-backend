@@ -18,16 +18,16 @@ export const ResourceResolvers: Resolvers = {
                 }
             };
 
-            const options = {
+            const options: any = {
                 projection: {
-                    "tickets.$": 1,
-                    name: 1,
-                    createdBy: 1,
-                    description: 1,
-                    maxActiveTickets: 1,
-                    lastModificationDate: 1,
-                    _id: 1,
-                    creationDate: 1,
+                    "tickets.$": 1 ,
+                    name: 1 ,
+                    createdBy: 1 ,
+                    description: 1 ,
+                    maxActiveTickets: 1 ,
+                    lastModificationDate: 1 ,
+                    _id: 1 ,
+                    creationDate: 1 ,
                     activeUserCount: 1
                 }
             }
@@ -78,12 +78,11 @@ export const ResourceResolvers: Resolvers = {
             userList[myUserIndex] = { id: new ObjectId(context.user._id).toHexString(), role: LocalRole.ResourceAdmin }
 
 
-            const projection = { projection: { username: 1 } };
             const userNameList = userList
                 .map<Promise<[string, CustomTryCatch<UserDbObject | null>]>>(async ({ id }) =>
                     [
                         id,
-                        await customTryCatch(db.collection<UserDbObject>('users').findOne({ _id: new ObjectId(id) }, projection))
+                        await customTryCatch(db.collection<UserDbObject>('users').findOne({ _id: new ObjectId(id) }, { projection: { username: 1 } }))
                     ]);
             const { error, result: userListResult } = await customTryCatch(Promise.all(userNameList));
 
