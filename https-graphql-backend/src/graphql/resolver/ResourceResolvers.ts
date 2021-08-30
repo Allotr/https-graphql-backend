@@ -11,32 +11,27 @@ export const ResourceResolvers: Resolvers = {
         myResources: async (parent, args, context) => {
             const db = await MongoDBSingleton.getInstance().db;
 
-            const query = {
+
+            const myCurrentTicket = await db.collection<ResourceDbObject>("resources").find({
                 "tickets.user._id": context.user._id,
                 "tickets.statuses.statusCode": {
                     $ne: TicketStatusCode.Revoked
                 }
-            };
-
-            const options: any = {
+            }, {
                 projection: {
-                    "tickets.$": 1 ,
-                    name: 1 ,
-                    createdBy: 1 ,
-                    description: 1 ,
-                    maxActiveTickets: 1 ,
-                    lastModificationDate: 1 ,
-                    _id: 1 ,
-                    creationDate: 1 ,
+                    "tickets.$": 1,
+                    name: 1,
+                    createdBy: 1,
+                    description: 1,
+                    maxActiveTickets: 1,
+                    lastModificationDate: 1,
+                    _id: 1,
+                    creationDate: 1,
                     activeUserCount: 1
                 }
-            }
-
-            const sort = {
+            }).sort({
                 lastModificationDate: -1 as SortDirection
-            }
-
-            const myCurrentTicket = await db.collection<ResourceDbObject>("resources").find(query, options).sort(sort).toArray();
+            }).toArray();
 
             const resourceList = myCurrentTicket
                 .map(({ _id, creationDate, createdBy, lastModificationDate, maxActiveTickets, name, tickets, description, activeUserCount }) => {

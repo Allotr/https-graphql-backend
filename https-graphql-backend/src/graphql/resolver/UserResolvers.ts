@@ -22,21 +22,16 @@ export const UserResolvers: Resolvers = {
     searchUsers: async (parent, args, context) => {
       const db = await MongoDBSingleton.getInstance().db;
 
-      const query = !args.query ? {} : {
-        $text: { $search: args.query ?? "" }
-      };
-
-      const options: any = {
+      const usersFound = await db.collection<UserDbObject>("users").find(
+        !args.query ? {} : {
+          $text: { $search: args.query ?? "" }
+        }, {
         projection: {
           _id: 1, username: 1, name: 1, surname: 1
         }
-      }
-
-      const sort = {
-        name: 1 as SortDirection
-      }
-
-      const usersFound = await db.collection<UserDbObject>("users").find(query, options).sort(sort).toArray();
+      }).sort({
+        name: 1
+      }).toArray();
 
       const userData = usersFound.map(({ _id, username = "", name = "", surname = "" }) => ({
         id: _id?.toHexString(),
