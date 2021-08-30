@@ -79,7 +79,7 @@ export const ResourceResolvers: Resolvers = {
 
 
             const userNameList = userList
-                .map<Promise<[string, CustomTryCatch<UserDbObject | null>]>>(async ({ id }) =>
+                .map<Promise<[string, CustomTryCatch<UserDbObject | null | undefined>]>>(async ({ id }) =>
                     [
                         id,
                         await customTryCatch(db.collection<UserDbObject>('users').findOne({ _id: new ObjectId(id) }, { projection: { username: 1 } }))
