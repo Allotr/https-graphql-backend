@@ -18,7 +18,7 @@ export const ResourceResolvers: Resolvers = {
                 }
             };
 
-            const options = {
+            const options: any = {
                 projection: {
                     "tickets.$": 1 ,
                     name: 1 ,
