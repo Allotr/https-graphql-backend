@@ -75,7 +75,7 @@ async function getAwaitingTicket(resourceId: string): Promise<ResourceDbObject |
 }
 
 
-async function getUser(userId?: ObjectId | null): Promise<UserDbObject | null> {
+async function getUser(userId?: ObjectId | null): Promise<UserDbObject | null | undefined> {
     const db = await MongoDBSingleton.getInstance().db;
     const userTikcet = await db.collection<UserDbObject>(USERS).findOne({
         _id: userId,
