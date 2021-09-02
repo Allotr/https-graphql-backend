@@ -9,11 +9,12 @@ import { UserDbObject, WebPushSubscription } from "allotr-graphql-schema-types";
 import { MongoDBSingleton } from "../utils/mongodb-singleton";
 import { USERS } from "../consts/collections";
 
-// Web Push
-// API
-const { VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, REDIRECT_URL } = EnvLoader.getInstance().loadedVariables;
 
 function initializeWebPush(app: express.Express) {
+
+    // Web Push
+    // API
+    const { VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, REDIRECT_URL } = EnvLoader.getInstance().loadedVariables;
 
     webPush.setVapidDetails(
         REDIRECT_URL,
