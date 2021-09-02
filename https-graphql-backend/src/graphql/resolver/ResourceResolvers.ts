@@ -102,7 +102,7 @@ export const ResourceResolvers: Resolvers = {
                     _id: new ObjectId(),
                     creationDate: timestamp,
                     statuses: [
-                        { statusCode: TicketStatusCode.Initialized, timestamp }
+                        { statusCode: TicketStatusCode.Initialized, timestamp, queuePosition: null }
                     ],
                     user: { role, _id: new ObjectId(id), username: userNameMap?.[id] },
                 })),

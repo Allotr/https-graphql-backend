@@ -7,6 +7,7 @@ import { EnvLoader } from "./src/utils/env-loader";
 import { graphqlHTTP } from 'express-graphql';
 import { MongoDBSingleton } from "./src/utils/mongodb-singleton";
 import { initializeGooglePassport, isLoggedIn } from "./src/auth/google-passport";
+import { initializeWebPush } from "./src/notifications/web-push";
 
 async function handle(event: any, context: any, cb: any) {
   // When using graphqlHTTP this is not being executed
@@ -15,6 +16,7 @@ async function handle(event: any, context: any, cb: any) {
 function onExpressServerCreated(app: core.Express) {
   // Create GraphQL HTTP server
   initializeGooglePassport(app);
+  initializeWebPush(app);
   app.use("/graphql", isLoggedIn, graphqlHTTP(req => ({ schema, graphiql: true, context: req })));
 }
 

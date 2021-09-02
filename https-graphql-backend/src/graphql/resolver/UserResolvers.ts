@@ -1,8 +1,6 @@
 
 import { Resolvers, ResultDbObject, UserDbObject } from "allotr-graphql-schema-types";
 import { MongoDBSingleton } from "../../utils/mongodb-singleton";
-import { RedisSingleton } from "../../utils/redis-singleton";
-import { SortDirection } from "mongodb"
 
 export const UserResolvers: Resolvers = {
   Query: {
@@ -41,11 +39,6 @@ export const UserResolvers: Resolvers = {
       }));
 
       return userData;
-    }
-  },
-  Subscription: {
-    newUpdate: {
-      subscribe: () => RedisSingleton.getInstance().pubsub.asyncIterator('something_changed'),
     }
   }
 }

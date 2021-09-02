@@ -8,6 +8,8 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import session from "express-session";
 import MongoStore from 'connect-mongo';
+import { USERS } from "../consts/collections";
+// import { GraphQLLocalStrategy, buildContext, createOnConnect } from 'graphql-passport';
 const cors = require('cors');
 
 // This NEEDS to be executed first
@@ -21,13 +23,26 @@ function isLoggedIn(req: express.Request, res: express.Response, next: express.N
     }
 }
 
+// Initialize passport data
+const { MONGO_DB_ENDPOINT, SESSION_SECRET } = EnvLoader.getInstance().loadedVariables;
+
+const sessionMiddleware = session({
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: { domain: '.allotr.eu' },
+    store: new MongoStore({ mongoUrl: MONGO_DB_ENDPOINT }),
+})
+
+const passportMiddleware = passport.initialize();
+const passportSessionMiddleware = passport.session();
+
+
 function initializeGooglePassport(app: express.Express) {
     const {
         GOOGLE_CLIENT_ID,
         GOOGLE_CLIENT_SECRET,
         GOOGLE_CALLBACK_URL,
-        MONGO_DB_ENDPOINT,
-        SESSION_SECRET,
         REDIRECT_URL } = EnvLoader.getInstance().loadedVariables;
     const corsOptions = {
         origin: REDIRECT_URL,
@@ -35,17 +50,9 @@ function initializeGooglePassport(app: express.Express) {
     };
     app.use(cors(corsOptions));
 
-    app.use(
-        session({
-            secret: SESSION_SECRET,
-            resave: false,
-            saveUninitialized: false,
-            cookie: { domain: '.allotr.eu' },
-            store: new MongoStore({ mongoUrl: MONGO_DB_ENDPOINT }),
-        })
-    )
-    app.use(passport.initialize())
-    app.use(passport.session())
+    app.use(sessionMiddleware)
+    app.use(passportMiddleware)
+    app.use(passportSessionMiddleware)
 
     passport.use(
         new GoogleStrategy(
@@ -58,7 +65,7 @@ function initializeGooglePassport(app: express.Express) {
             async (accessToken, refreshToken, profile, done) => {
                 // passport callback function
                 const db = await MongoDBSingleton.getInstance().db;
-                const currentUser = await db.collection<UserDbObject>('users').findOne({ oauthIds: { googleId: profile.id } })
+                const currentUser = await db.collection<UserDbObject>(USERS).findOne({ oauthIds: { googleId: profile.id } })
                 //check if user already exists in our db with the given profile ID
                 if (currentUser) {
                     //if we already have a record with the given profile ID
@@ -73,10 +80,10 @@ function initializeGooglePassport(app: express.Express) {
                         surname: profile.name?.familyName,
                         userPreferences: {},
                         oauthIds: { googleId: profile.id },
-                        pushURLs: []
+                        webPushSubscriptions: []
                     };
-                    await db.collection<UserDbObject>('users').insertOne(userToCreate)
-                    await db.collection<UserDbObject>('users').createIndex({ username: "text", name: "text", surname: "text" })
+                    await db.collection<UserDbObject>(USERS).insertOne(userToCreate)
+                    await db.collection<UserDbObject>(USERS).createIndex({ username: "text", name: "text", surname: "text" })
 
                     done(null, userToCreate);
                 }
@@ -91,10 +98,10 @@ function initializeGooglePassport(app: express.Express) {
         try {
             const db = await MongoDBSingleton.getInstance().db;
             const idToSearch = new ObjectId(id);
-            const user = await db.collection<UserDbObject>('users').findOne({ _id: idToSearch });
+            const user = await db.collection<UserDbObject>(USERS).findOne({ _id: idToSearch });
             done(null, user);
         } catch (e) {
-            console.log("error deserializing user");
+            console.log("error deserializing user", e);
         }
     });
 
@@ -118,4 +125,4 @@ function initializeGooglePassport(app: express.Express) {
         res.redirect(REDIRECT_URL);
     });
 }
-export { initializeGooglePassport, isLoggedIn }
+export { initializeGooglePassport, isLoggedIn, sessionMiddleware, passportMiddleware, passportSessionMiddleware }
