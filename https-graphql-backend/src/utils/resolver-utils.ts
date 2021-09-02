@@ -36,7 +36,7 @@ async function getUserTicket(userId: string | ObjectId, resourceId: string, myDb
     return userTikcet;
 }
 
-async function getResource(resourceId: string): Promise<ResourceDbObject | null> {
+async function getResource(resourceId: string): Promise<ResourceDbObject | null | undefined> {
     const db = await MongoDBSingleton.getInstance().db;
 
     const userTikcet = await db.collection<ResourceDbObject>(RESOURCES).findOne({
