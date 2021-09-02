@@ -20,19 +20,6 @@ function isLoggedIn(req: express.Request, res: express.Response, next: express.N
     }
 }
 
-// Initialize passport data
-const { MONGO_DB_ENDPOINT, SESSION_SECRET } = EnvLoader.getInstance().loadedVariables;
-
-const sessionMiddleware = session({
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: { domain: '.allotr.eu' },
-    store: new MongoStore({ mongoUrl: MONGO_DB_ENDPOINT }),
-})
-
-const passportMiddleware = passport.initialize();
-const passportSessionMiddleware = passport.session();
 
 
 function initializeGooglePassport(app: express.Express) {
@@ -40,11 +27,25 @@ function initializeGooglePassport(app: express.Express) {
         GOOGLE_CLIENT_ID,
         GOOGLE_CLIENT_SECRET,
         GOOGLE_CALLBACK_URL,
+        MONGO_DB_ENDPOINT,
+        SESSION_SECRET,
         REDIRECT_URL } = EnvLoader.getInstance().loadedVariables;
     const corsOptions = {
         origin: REDIRECT_URL,
         credentials: true // <-- REQUIRED backend setting
     };
+
+    const sessionMiddleware = session({
+        secret: SESSION_SECRET,
+        resave: false,
+        saveUninitialized: false,
+        cookie: { domain: '.allotr.eu' },
+        store: new MongoStore({ mongoUrl: MONGO_DB_ENDPOINT }),
+    })
+
+    const passportMiddleware = passport.initialize();
+    const passportSessionMiddleware = passport.session();
+
     app.use(cors(corsOptions));
 
     app.use(sessionMiddleware)
@@ -122,4 +123,4 @@ function initializeGooglePassport(app: express.Express) {
         res.redirect(REDIRECT_URL);
     });
 }
-export { initializeGooglePassport, isLoggedIn, sessionMiddleware, passportMiddleware, passportSessionMiddleware }
+export { initializeGooglePassport, isLoggedIn }

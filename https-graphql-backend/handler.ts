@@ -15,6 +15,7 @@ async function handle(event: any, context: any, cb: any) {
 
 function onExpressServerCreated(app: core.Express) {
   // Create GraphQL HTTP server
+  // IMPORTANT: ENVIRONMENT VARIABLES ONLY ARE AVAILABLE HERE AND ON onExpressServerListen
   initializeGooglePassport(app);
   initializeWebPush(app);
   app.use("/graphql", isLoggedIn, graphqlHTTP(req => ({ schema, graphiql: true, context: req })));
