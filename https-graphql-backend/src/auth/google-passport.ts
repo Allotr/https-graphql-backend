@@ -12,9 +12,6 @@ import { USERS } from "../consts/collections";
 // import { GraphQLLocalStrategy, buildContext, createOnConnect } from 'graphql-passport';
 const cors = require('cors');
 
-// This NEEDS to be executed first
-require('dotenv').config();
-
 function isLoggedIn(req: express.Request, res: express.Response, next: express.NextFunction) {
     if (req.user) {
         next();
