@@ -38,7 +38,7 @@ export const ResourceResolvers: Resolvers = {
                     activeUserCount: 1
                 }
             }).sort({
-                lastModificationDate: -1
+                creationDate: 1
             }).toArray();
 
             const resourceList = myCurrentTicket
