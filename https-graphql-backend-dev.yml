@@ -3,8 +3,8 @@ provider:
   name: openfaas
   gateway: https://openfaas.allotr.eu
 functions:
-  graphql-backend:
+  https-graphql-backend:
     lang: node-typescript-express
-    handler: ./graphql-backend
+    handler: ./https-graphql-backend
     image: rafaelpernil/graphql-backend:latest
 
