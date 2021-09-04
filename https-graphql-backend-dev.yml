@@ -6,5 +6,5 @@ functions:
   https-graphql-backend:
     lang: node-typescript-express
     handler: ./https-graphql-backend
-    image: rafaelpernil/graphql-backend:latest
+    image: rafaelpernil/https-graphql-backend:latest
 
