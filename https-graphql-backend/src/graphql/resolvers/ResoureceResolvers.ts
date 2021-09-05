@@ -244,7 +244,7 @@ export const ResourceResolvers: Resolvers = {
                     // Change status to active
                     // Move people forward in the queue
                     await forwardQueue(resourceId, timestamp, 2, session2);
-                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Active, timestamp }, 3, session, previousStatusCode);
+                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Active, timestamp }, 3, session2, previousStatusCode);
 
 
                 }, transactionOptions);
