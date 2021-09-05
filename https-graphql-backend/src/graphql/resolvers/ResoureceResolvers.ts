@@ -225,10 +225,31 @@ export const ResourceResolvers: Resolvers = {
                     }
                     // Change status to active
                     await removeAwaitingConfirmation(resourceId, timestamp, 1, session)
-                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Active, timestamp }, 2, session, previousStatusCode);
                 }, transactionOptions);
             } finally {
                 await session.endSession();
+            }
+
+            // // Step 1: Start a Client Session
+            const session2 = client.startSession();
+
+            try {
+                await session2.withTransaction(async () => {
+                    // Check if we can request the resource right now
+                    const { canRequest, ticketId, previousStatusCode } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Active, session2);
+                    if (!canRequest) {
+                        result = { status: OperationResult.Error }
+                        throw result;
+                    }
+                    // Change status to active
+                    // Move people forward in the queue
+                    await forwardQueue(resourceId, timestamp, 2, session2);
+                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Active, timestamp }, 3, session, previousStatusCode);
+
+
+                }, transactionOptions);
+            } finally {
+                await session2.endSession();
             }
             if (result.status === OperationResult.Error) {
                 return result;
