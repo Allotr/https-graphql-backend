@@ -11,6 +11,8 @@ export const NotificationResolvers: Resolvers = {
 
             const userNotifications = await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).find({
                 "user._id": context.user._id
+            }).sort({
+                timestamp: -1
             }).toArray();
 
             return userNotifications.map<ResourceNotification>(({ ticketStatus, user, _id, descriptionRef, resource, timestamp, titleRef }) => ({
