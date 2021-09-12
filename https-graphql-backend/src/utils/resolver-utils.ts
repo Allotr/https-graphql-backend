@@ -325,18 +325,18 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
         return;
     }
 
-    fullReceivingUser?.webPushSubscriptions?.forEach(subscription => {
+    fullReceivingUser?.webPushSubscriptions?.forEach((subscription, index) => {
         if (subscription == null) {
             return;
         }
-        sendNotification({ endpoint: subscription.endpoint ?? "", keys: { auth: subscription.keys?.auth ?? "", p256dh: subscription.keys?.p256dh ?? "" } })
+        setTimeout(() => sendNotification({ endpoint: subscription.endpoint ?? "", keys: { auth: subscription.keys?.auth ?? "", p256dh: subscription.keys?.p256dh ?? "" } }), 100 * index);
     })
 
     RedisSingleton.getInstance().pubsub.publish(generateChannelId(RESOURCE_READY_TO_PICK, user?._id), {
         myNotificationDataSub: [
-           {
+            {
                 ticketStatus: notificationData.ticketStatus as TicketStatusCode,
-                user: { username: notificationData.user.username, id:notificationData.user._id.toHexString() },
+                user: { username: notificationData.user.username, id: notificationData.user._id.toHexString() },
                 descriptionRef: notificationData.descriptionRef,
                 id: notificationData._id?.toHexString(),
                 resource: {
