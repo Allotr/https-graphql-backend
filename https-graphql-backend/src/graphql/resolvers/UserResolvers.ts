@@ -38,6 +38,8 @@ export const UserResolvers: Resolvers = {
       if (!new ObjectId(userId).equals(context.user._id)) {
         return { status: OperationResult.Error }
       }
+      // Close session before it's too late!
+      context.logout();
       const db = await MongoDBSingleton.getInstance().db;
 
       const client = await MongoDBSingleton.getInstance().connection;
