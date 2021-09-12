@@ -1,6 +1,7 @@
 import { CustomTryCatch } from "../types/custom-try-catch";
 import { TicketDbObject, TicketStatusCode, TicketStatusDbObject } from "allotr-graphql-schema-types";
 import { ObjectId } from "mongodb";
+import { CategorizedArrayData } from "../types/categorized-array-data";
 
 async function customTryCatch<T>(promise: Promise<T>): Promise<CustomTryCatch<T>> {
     try {
@@ -46,4 +47,37 @@ function getLastQueuePosition(tickets: TicketDbObject[] | undefined = []): numbe
     }, 0) ?? 0;
 }
 
-export { customTryCatch, compareDates, generateChannelId, getLastStatus, getLastQueuePosition, addMSToTime }
+function getFirstQueuePosition(tickets: TicketDbObject[] | undefined = []): number {
+    return tickets.reduce<number>((firstPosition, ticket) => {
+        const { queuePosition } = getLastStatus(ticket);
+        const processedQueuePosition = queuePosition ?? Number.MAX_SAFE_INTEGER;
+        return firstPosition < processedQueuePosition ? firstPosition : processedQueuePosition;
+    }, Number.MAX_SAFE_INTEGER) ?? 1;
+}
+
+function categorizeArrayData<T extends { id: string }>(previousList: T[], newList: T[]): CategorizedArrayData<T> {
+    const newListCopy = [...newList];
+    const total: CategorizedArrayData<T> = {
+        add: [],
+        delete: [],
+        modify: []
+    }
+
+    for (const previousData of previousList) {
+        const indexInNewList = newListCopy.findIndex(({ id }) => id === previousData.id);
+        if (indexInNewList !== -1) {
+            // If found, we modify
+            total.modify.push({...previousData, ...newListCopy[indexInNewList]})
+            // And we remove the found value from the new list
+            newListCopy.splice(indexInNewList, 1);
+        } else {
+            // If not found, we delete
+            total.delete.push(previousData)
+        }
+    }
+    // The rest is added
+    total.add = newListCopy;
+    return total;
+}
+
+export { customTryCatch, compareDates, generateChannelId, getLastStatus, getLastQueuePosition, addMSToTime, categorizeArrayData, getFirstQueuePosition }

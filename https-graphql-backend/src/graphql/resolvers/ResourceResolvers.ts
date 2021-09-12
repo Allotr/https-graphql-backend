@@ -1,14 +1,17 @@
 
-import { Resolvers, OperationResult, ResourceDbObject, UserDbObject, LocalRole, TicketStatusCode, ErrorCode,  ResourceManagementResult } from "allotr-graphql-schema-types";
+import { Resolvers, OperationResult, ResourceDbObject, UserDbObject, LocalRole, TicketStatusCode, ErrorCode, User, ResourceCard, Ticket, RequestSource, ResourceManagementResult, WebPushSubscription, TicketViewUserInfo, TicketView, TicketStatus, ResourceUser, UpdateResult } from "allotr-graphql-schema-types";
 import { MongoDBSingleton } from "../../utils/mongodb-singleton";
+import { RedisSingleton } from "../../utils/redis-singleton";
 import { ObjectId, ReadPreference, WriteConcern, ReadConcern, TransactionOptions } from "mongodb"
-import { customTryCatch,  getLastStatus } from "../../utils/data-util";
+import { categorizeArrayData, customTryCatch, generateChannelId, getFirstQueuePosition, getLastStatus } from "../../utils/data-util";
 import { CustomTryCatch } from "../../types/custom-try-catch";
-
-import { canRequestStatusChange } from "../../guards/guards";
-import { enqueue, forwardQueue, generateOutputByResource, getResource, pushNotification, notifyFirstInQueue, pushNewStatus, getAwaitingTicket, removeAwaitingConfirmation } from "../../utils/resolver-utils";
+import { withFilter } from 'graphql-subscriptions';
+import { RESOURCE_CREATED, RESOURCE_READY_TO_PICK } from "../../consts/connection-tokens";
+import { canRequestStatusChange, hasAdminAccessInResource } from "../../guards/guards";
+import { enqueue, forwardQueue, generateOutputByResource, getResource, pushNotification, notifyFirstInQueue, pushNewStatus, removeAwaitingConfirmation } from "../../utils/resolver-utils";
 import { RESOURCES, USERS } from "../../consts/collections";
-
+import { EnvLoader } from "../../utils/env-loader";
+import { RedisPubSub } from "graphql-redis-subscriptions";
 
 
 
@@ -64,9 +67,94 @@ export const ResourceResolvers: Resolvers = {
                 })
 
             return resourceList;
+        },
+        viewResource: async (parent, args, context) => {
+
+            const { resourceId } = args;
+            const db = await MongoDBSingleton.getInstance().db;
+            const myResource = await db.collection<ResourceDbObject>(RESOURCES).findOne({
+                _id: new ObjectId(resourceId)
+            });
+
+            if (myResource == null) {
+                return null;
+            }
+
+            const tickets = myResource.tickets;
+
+            if (tickets.findIndex(({ user }) => user._id?.equals(context.user._id)) === -1) {
+                return null;
+            }
+
+            const userDataMap: Record<string, TicketViewUserInfo> = {};
+            const userIdList = tickets.map(({ user }) => user._id);
+
+            const userDataList = await db.collection<UserDbObject>(USERS).find(
+                {
+                    _id: { $in: userIdList }
+                }, {
+                projection: {
+                    _id: 1,
+                    username: 1,
+                    name: 1,
+                    surname: 1
+                }
+            }).toArray();
+
+            if (userDataList == null) {
+                return null;
+            }
+
+            for (const user of userDataList) {
+                userDataMap[user._id?.toHexString() ?? ""] = {
+                    ...userDataMap[user._id?.toHexString() ?? ""],
+                    userId: user._id?.toHexString(),
+                    name: user.name ?? "",
+                    surname: user.surname ?? "",
+                    username: user.username ?? "",
+                }
+            }
+            // Add the role to the map
+            for (const { user } of tickets) {
+                userDataMap[user._id?.toHexString() ?? ""] = { ...userDataMap[user._id?.toHexString() ?? ""], role: user.role as LocalRole }
+            }
+
+            const ticketList = tickets.map<TicketView>(ticket => {
+                const { creationDate, user, _id } = ticket;
+                return {
+                    ticketId: _id?.toHexString(),
+                    creationDate,
+                    user: userDataMap[user._id?.toHexString() ?? ""],
+                    lastStatus: getLastStatus(ticket) as TicketStatus
+                }
+            }).filter(({ lastStatus }) => {
+                return [TicketStatusCode.Requesting, TicketStatusCode.Revoked].every(code => code !== lastStatus.statusCode)
+            });
+
+            const filteredTicketList = [
+                ...ticketList.filter(({ lastStatus }) => lastStatus.statusCode === TicketStatusCode.Active),
+                ...ticketList.filter(({ lastStatus }) => lastStatus.statusCode === TicketStatusCode.AwaitingConfirmation),
+                ...ticketList.filter(({ lastStatus }) => lastStatus.statusCode === TicketStatusCode.Queued).sort((a, b) =>
+                    (a.lastStatus.queuePosition ?? 0) - (b.lastStatus.queuePosition ?? 0)
+                ),
+                ...ticketList.filter(({ lastStatus }) => [TicketStatusCode.Inactive, TicketStatusCode.Initialized].includes(lastStatus.statusCode)),
+            ]
+
+            return {
+                id: resourceId,
+                activeUserCount: myResource.activeUserCount,
+                creationDate: myResource.creationDate,
+                lastModificationDate: myResource.lastModificationDate,
+                maxActiveTickets: myResource.maxActiveTickets,
+                name: myResource.name,
+                description: myResource.description ?? "",
+                createdBy: { username: myResource.createdBy?.username ?? "", userId: myResource.createdBy?._id?.toHexString() ?? "" },
+                tickets: filteredTicketList
+            };
         }
     },
     Mutation: {
+        // Resource CRUD operations
         createResource: async (parent, args, context) => {
             const { name, description, maxActiveTickets, userList } = args.resource
             const timestamp = new Date();
@@ -127,6 +215,159 @@ export const ResourceResolvers: Resolvers = {
 
             return { status: OperationResult.Ok, newObjectId: result.insertedId.toHexString() };
         },
+        updateResource: async (parent, args, context) => {
+            const { name, description, maxActiveTickets, userList: newUserList, id } = args.resource
+            const timestamp = new Date();
+
+            const db = await MongoDBSingleton.getInstance().db;
+
+            const client = await MongoDBSingleton.getInstance().connection;
+
+            let result: UpdateResult = { status: OperationResult.Ok };
+
+
+            // Step 1: Start a Client Session
+            const session = client.startSession();
+            // Step 2: Optional. Define options to use for the transaction
+            const transactionOptions: TransactionOptions = {
+                readPreference: new ReadPreference(ReadPreference.PRIMARY),
+                readConcern: new ReadConcern("local"),
+                writeConcern: new WriteConcern("majority")
+            };
+            // Step 3: Use withTransaction to start a transaction, execute the callback, and commit (or abort on error)
+            // Note: The callback for withTransaction MUST be async and/or return a Promise.
+            try {
+                await session.withTransaction(async () => {
+                    const userNameList = newUserList
+                        .map<Promise<[string, CustomTryCatch<UserDbObject | null | undefined>]>>(async ({ id }) =>
+                            [
+                                id,
+                                await customTryCatch(db.collection<UserDbObject>(USERS).findOne({ _id: new ObjectId(id) }, { projection: { username: 1 } }))
+                            ]);
+                    const { error, result: userListResult } = await customTryCatch(Promise.all(userNameList));
+
+                    if (error != null || userListResult == null) {
+                        return {
+                            status: OperationResult.Error,
+                            errorCode: ErrorCode.BadData,
+                            errorMessage: "Some user in the list does not exist. Please, try with other users",
+                            newObjectId: null
+                        }
+                    }
+                    const userNameMap = Object.fromEntries(userListResult.map(([id, { result: user }]) => [id, user?.username ?? ""]));
+
+                    const resource = await getResource(id ?? "")
+                    if (resource == null) {
+                        return { status: OperationResult.Error }
+                    }
+
+                    const oldUserList = resource?.tickets?.map<ResourceUser>(({ user }) => ({ id: user._id?.toHexString() ?? "", role: user.role as LocalRole }))
+
+                    const categorizedUserData = categorizeArrayData(oldUserList, newUserList);
+
+                    // Update
+                    await db.collection<ResourceDbObject>(RESOURCES).updateMany({
+                        _id: new ObjectId(id ?? ""),
+                    }, {
+                        $push: {
+                            tickets: {
+                                $each: categorizedUserData.add.map(({ id, role }) => {
+                                    return {
+                                        _id: new ObjectId(),
+                                        creationDate: timestamp,
+                                        statuses: [
+                                            { statusCode: TicketStatusCode.Initialized, timestamp, queuePosition: null }
+                                        ],
+                                        user: { role, _id: new ObjectId(id), username: userNameMap?.[id] }
+                                    }
+                                })
+
+                            }
+                        }
+                    }, {
+                        session
+                    })
+
+                    await db.collection<ResourceDbObject>(RESOURCES).updateMany({
+                        _id: new ObjectId(id ?? ""),
+                    }, {
+                        $pull: {
+                            tickets: {
+                                "user._id": { $in: [...categorizedUserData.delete?.map(({ id }) => !!id ? new ObjectId(id) : null).filter(Boolean)] }// { $in: categorizedUserData.delete?.map(({ id }) => !!id ? id : null).filter(Boolean) }
+                            }
+                        } as any
+                    }, {
+                        session
+                    })
+
+                    for (const { id: ticketUserId, role } of categorizedUserData.modify) {
+                        await db.collection<ResourceDbObject>(RESOURCES).updateMany({
+                            _id: new ObjectId(id ?? ""),
+                            "tickets.user._id": new ObjectId(ticketUserId)
+                        }, {
+                            $set: {
+                                "tickets.$[toModifyTicket].user.role": role
+                            }
+
+                        }, {
+                            session,
+                            arrayFilters: [
+                                {
+                                    "toModifyTicket.user._id": new ObjectId(ticketUserId)
+                                },
+                            ],
+                        })
+
+                    }
+
+                    // Find all results
+                    await db.collection<ResourceDbObject>(RESOURCES).updateMany({
+                        _id: new ObjectId(id ?? "")
+                    }, {
+                        $set: {
+                            lastModificationDate: timestamp,
+                            maxActiveTickets,
+                            name,
+                            description
+                        }
+                    }, {
+                        session
+                    });
+
+                    if (result == null) {
+                        return { status: OperationResult.Error, newObjectId: null };
+                    }
+                }, transactionOptions);
+            } finally {
+                await session.endSession();
+            }
+            if (result.status === OperationResult.Error) {
+                return result;
+            }
+
+
+            return { status: OperationResult.Ok };
+        },
+        deleteResource: async (parent, args, context) => {
+            const { resourceId } = args
+            const db = await MongoDBSingleton.getInstance().db;
+
+            const hasAdminAccess = await hasAdminAccessInResource(context.user._id.toHexString() ?? "", resourceId)
+            if (!hasAdminAccess) {
+                console.log("Does not have admin access", hasAdminAccess, context.user._id, resourceId);
+                return { status: OperationResult.Error }
+            }
+
+            const deleteResult = await db.collection<ResourceDbObject>(RESOURCES).deleteOne({ _id: new ObjectId(resourceId) })
+
+            if (!deleteResult.deletedCount) {
+                console.log("Has not deleted the resource");
+                return { status: OperationResult.Error }
+            }
+            return { status: OperationResult.Ok };
+        },
+
+        // Resource management operations
         requestResource: async (parent, args, context) => {
             const { requestFrom, resourceId } = args
             const timestamp = new Date();
@@ -154,7 +395,8 @@ export const ResourceResolvers: Resolvers = {
                         activeUserCount = 0,
                         maxActiveTickets = 0,
                         previousStatusCode,
-                        lastQueuePosition
+                        lastQueuePosition,
+                        firstQueuePosition
                     } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Requesting, session);
 
                     if (!canRequest) {
@@ -218,13 +460,13 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest, ticketId, previousStatusCode } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Active, session);
+                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Active, session);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
                     }
                     // Change status to active
-                    await removeAwaitingConfirmation(resourceId, timestamp, 1, session)
+                    await removeAwaitingConfirmation(resourceId, firstQueuePosition, session)
                 }, transactionOptions);
             } finally {
                 await session.endSession();
@@ -236,7 +478,7 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session2.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest, ticketId, previousStatusCode } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Active, session2);
+                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Active, session2);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
@@ -286,13 +528,13 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Inactive, session);
+                    const { canRequest, firstQueuePosition } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Inactive, session);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
                     }
                     // Remove our awaiting confirmation
-                    await removeAwaitingConfirmation(resourceId, timestamp, 1, session)
+                    await removeAwaitingConfirmation(resourceId, firstQueuePosition, session)
                 }, transactionOptions);
             } finally {
                 await session.endSession();
@@ -304,7 +546,7 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session2.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest, ticketId, previousStatusCode } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Queued, session2);
+                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Queued, session2);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
@@ -323,14 +565,15 @@ export const ResourceResolvers: Resolvers = {
                 return result;
             }
 
-            await notifyFirstInQueue(resourceId, timestamp, 3);
-
             // Once the session is ended, let's get and return our new data
 
             const resource = await getResource(resourceId)
             if (resource == null) {
                 return { status: OperationResult.Error }
             }
+
+            const firstQueuePosition = getFirstQueuePosition(resource?.tickets ?? []);
+            await notifyFirstInQueue(resourceId, timestamp, 3, firstQueuePosition);
 
             await pushNotification(resource?.name, resource?._id, resource?.createdBy?._id, resource?.createdBy?.username, timestamp);
 
@@ -358,7 +601,7 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest, ticketId, previousStatusCode } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Inactive, session);
+                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Inactive, session);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
@@ -368,7 +611,7 @@ export const ResourceResolvers: Resolvers = {
 
 
                     // Notify our next in queue user
-                    await notifyFirstInQueue(resourceId, timestamp, 2, session);
+                    await notifyFirstInQueue(resourceId, timestamp, 2, firstQueuePosition, session);
                 }, transactionOptions);
             } finally {
                 await session.endSession();

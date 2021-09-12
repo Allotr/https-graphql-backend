@@ -203,8 +203,7 @@ async function forwardQueue(
 
 async function removeAwaitingConfirmation(
     resourceId: string,
-    currentDate: Date,
-    executionPosition: number,
+    firstQueuePosition: number,
     session: ClientSession) {
     const db = await MongoDBSingleton.getInstance().db;
     // Delete notification
@@ -222,7 +221,7 @@ async function removeAwaitingConfirmation(
         "tickets.statuses.statusCode": TicketStatusCode.AwaitingConfirmation
     }, {
         $pull: {
-            "tickets.$[myTicket].statuses": { $or: [{ statusCode: TicketStatusCode.AwaitingConfirmation }, { statusCode: TicketStatusCode.Queued, queuePosition: 1 }] }
+            "tickets.$[myTicket].statuses": { $or: [{ statusCode: TicketStatusCode.AwaitingConfirmation }, { statusCode: TicketStatusCode.Queued, queuePosition: firstQueuePosition }] }
         }
     }, {
         session,
@@ -238,22 +237,23 @@ async function notifyFirstInQueue(
     resourceId: string,
     currentDate: Date,
     executionPosition: number,
+    firstQueuePosition: number,
     session?: ClientSession) {
     const db = await MongoDBSingleton.getInstance().db;
     // Add 1ms to make sure the statuses are in order
     const timestamp = addMSToTime(currentDate, executionPosition)
     await db.collection(RESOURCES).updateOne({
         _id: new ObjectId(resourceId),
-        "tickets.statuses.queuePosition": 1
+        "tickets.statuses.queuePosition": firstQueuePosition
     }, {
         $push: {
-            "tickets.$[myTicket].statuses": { statusCode: TicketStatusCode.AwaitingConfirmation, timestamp, queuePosition: 1 }
+            "tickets.$[myTicket].statuses": { statusCode: TicketStatusCode.AwaitingConfirmation, timestamp, queuePosition: firstQueuePosition }
         }
     }, {
         session,
         arrayFilters: [
             {
-                "myTicket.statuses.queuePosition": 1
+                "myTicket.statuses.queuePosition": firstQueuePosition
             },
         ],
     })
