@@ -290,7 +290,7 @@ export const ResourceResolvers: Resolvers = {
 
                     // Delete notifications
                     await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).deleteMany({
-                        "resource._id": new ObjectId(id),
+                        "resource._id": new ObjectId(id ?? ""),
                         "user._id": {
                             $in: [...categorizedUserData.delete?.map(({ id }) => !!id ? new ObjectId(id) : null).filter(Boolean)]
                         }

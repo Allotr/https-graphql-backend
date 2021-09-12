@@ -84,7 +84,7 @@ export const UserResolvers: Resolvers = {
 
           // Delete notifications
           await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).deleteMany({
-            "user._id": new ObjectId(userId)
+            "user._id": new ObjectId(userId ?? "")
           })
 
           // Delete user
