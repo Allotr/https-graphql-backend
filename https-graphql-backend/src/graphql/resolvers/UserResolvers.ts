@@ -1,8 +1,8 @@
 
-import { LocalRole, OperationResult, Resolvers, ResourceDbObject, UserDbObject, UserDeletionResult } from "allotr-graphql-schema-types";
+import { LocalRole, OperationResult, Resolvers, ResourceDbObject, ResourceNotificationDbObject, UserDbObject, UserDeletionResult } from "allotr-graphql-schema-types";
 import { MongoDBSingleton } from "../../utils/mongodb-singleton";
 import { ObjectId, ReadConcern, ReadPreference, TransactionOptions, WriteConcern } from "mongodb"
-import { RESOURCES, USERS } from "../../consts/collections";
+import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
 
 
 export const UserResolvers: Resolvers = {
@@ -80,6 +80,11 @@ export const UserResolvers: Resolvers = {
               })
             }, {
             session
+          })
+
+          // Delete notifications
+          await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).deleteMany({
+            "user._id": new ObjectId(userId)
           })
 
           // Delete user

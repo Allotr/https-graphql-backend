@@ -325,11 +325,11 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
         return;
     }
 
-    fullReceivingUser?.webPushSubscriptions?.forEach((subscription, index) => {
+    fullReceivingUser?.webPushSubscriptions?.forEach(subscription => {
         if (subscription == null) {
             return;
         }
-        setTimeout(() => sendNotification({ endpoint: subscription.endpoint ?? "", keys: { auth: subscription.keys?.auth ?? "", p256dh: subscription.keys?.p256dh ?? "" } }), 100 * index);
+        sendNotification({ endpoint: subscription.endpoint ?? "", keys: { auth: subscription.keys?.auth ?? "", p256dh: subscription.keys?.p256dh ?? "" } })
     })
 
     RedisSingleton.getInstance().pubsub.publish(generateChannelId(RESOURCE_READY_TO_PICK, user?._id), {

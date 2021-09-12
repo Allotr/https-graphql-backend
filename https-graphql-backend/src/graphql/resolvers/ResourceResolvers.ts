@@ -1,5 +1,5 @@
 
-import { Resolvers, OperationResult, ResourceDbObject, UserDbObject, LocalRole, TicketStatusCode, ErrorCode, User, ResourceCard, Ticket, RequestSource, ResourceManagementResult, WebPushSubscription, TicketViewUserInfo, TicketView, TicketStatus, ResourceUser, UpdateResult } from "allotr-graphql-schema-types";
+import { Resolvers, OperationResult, ResourceDbObject, UserDbObject, LocalRole, TicketStatusCode, ErrorCode, User, ResourceCard, Ticket, RequestSource, ResourceManagementResult, WebPushSubscription, TicketViewUserInfo, TicketView, TicketStatus, ResourceUser, UpdateResult, ResourceNotificationDbObject } from "allotr-graphql-schema-types";
 import { MongoDBSingleton } from "../../utils/mongodb-singleton";
 import { RedisSingleton } from "../../utils/redis-singleton";
 import { ObjectId, ReadPreference, WriteConcern, ReadConcern, TransactionOptions } from "mongodb"
@@ -9,7 +9,7 @@ import { withFilter } from 'graphql-subscriptions';
 import { RESOURCE_CREATED, RESOURCE_READY_TO_PICK } from "../../consts/connection-tokens";
 import { canRequestStatusChange, hasAdminAccessInResource } from "../../guards/guards";
 import { enqueue, forwardQueue, generateOutputByResource, getResource, pushNotification, notifyFirstInQueue, pushNewStatus, removeAwaitingConfirmation } from "../../utils/resolver-utils";
-import { RESOURCES, USERS } from "../../consts/collections";
+import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
 import { EnvLoader } from "../../utils/env-loader";
 import { RedisPubSub } from "graphql-redis-subscriptions";
 
@@ -288,12 +288,20 @@ export const ResourceResolvers: Resolvers = {
                         session
                     })
 
+                    // Delete notifications
+                    await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).deleteMany({
+                        "resource._id": new ObjectId(id),
+                        "user._id": {
+                            $in: [...categorizedUserData.delete?.map(({ id }) => !!id ? new ObjectId(id) : null).filter(Boolean)]
+                        }
+                    })
+
                     await db.collection<ResourceDbObject>(RESOURCES).updateMany({
                         _id: new ObjectId(id ?? ""),
                     }, {
                         $pull: {
                             tickets: {
-                                "user._id": { $in: [...categorizedUserData.delete?.map(({ id }) => !!id ? new ObjectId(id) : null).filter(Boolean)] }// { $in: categorizedUserData.delete?.map(({ id }) => !!id ? id : null).filter(Boolean) }
+                                "user._id": { $in: [...categorizedUserData.delete?.map(({ id }) => !!id ? new ObjectId(id) : null).filter(Boolean)] }
                             }
                         } as any
                     }, {
