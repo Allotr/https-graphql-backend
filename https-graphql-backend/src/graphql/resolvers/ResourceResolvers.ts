@@ -360,8 +360,13 @@ export const ResourceResolvers: Resolvers = {
 
             const deleteResult = await db.collection<ResourceDbObject>(RESOURCES).deleteOne({ _id: new ObjectId(resourceId) })
 
-            if (!deleteResult.deletedCount) {
-                console.log("Has not deleted the resource");
+            // Delete notifications
+            const deleteNotificationResult = await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).deleteMany({
+                "resource._id": new ObjectId(resourceId ?? "")
+            })
+
+            if (!deleteResult.deletedCount || !deleteNotificationResult.deletedCount) {
+                console.log("Has not deleted the resource or notifications");
                 return { status: OperationResult.Error }
             }
             return { status: OperationResult.Ok };

@@ -35,7 +35,6 @@ export const UserResolvers: Resolvers = {
   },
   Mutation: {
     deleteUser: async (parent, args, context) => {
-      console.log("context", context.user);
       const { deleteAllFlag, userId } = args;
       if (!new ObjectId(userId).equals(context?.user?._id)) {
         return { status: OperationResult.Error }
@@ -63,11 +62,8 @@ export const UserResolvers: Resolvers = {
         creationDate: 1
       }).toArray();
 
-      console.log("Pasa el primer bloqueo");
-
       for (const resource of activeResourceList) {
         const releaseResourceFunction = (ResourceResolvers as any)?.Mutation?.releaseResource;
-        console.log("Llama con el recurso", resource);
         try {
           await releaseResourceFunction?.(undefined, { requestFrom: RequestSource.Resource, resourceId: new ObjectId(resource?._id ?? "").toHexString() ?? "" }, context)
         } catch (e) {
