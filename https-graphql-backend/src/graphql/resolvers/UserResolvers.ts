@@ -35,12 +35,12 @@ export const UserResolvers: Resolvers = {
   },
   Mutation: {
     deleteUser: async (parent, args, context) => {
+      console.log("context", context.user);
       const { deleteAllFlag, userId } = args;
-      if (!new ObjectId(userId).equals(context.user._id)) {
+      if (!new ObjectId(userId).equals(context?.user?._id)) {
         return { status: OperationResult.Error }
       }
-      // Close session before it's too late!
-      context.logout();
+
       const db = await MongoDBSingleton.getInstance().db;
 
       const client = await MongoDBSingleton.getInstance().connection;
@@ -62,6 +62,8 @@ export const UserResolvers: Resolvers = {
       }).sort({
         creationDate: 1
       }).toArray();
+
+      console.log("Pasa el primer bloqueo");
 
       for (const resource of activeResourceList) {
         const releaseResourceFunction = ResourceResolvers?.Mutation?.releaseResource as Function;
@@ -131,6 +133,8 @@ export const UserResolvers: Resolvers = {
       if (result.status === OperationResult.Error) {
         return result;
       }
+      // Close session before it's too late!
+      context.logout();
       return { status: OperationResult.Ok }
     }
   }
