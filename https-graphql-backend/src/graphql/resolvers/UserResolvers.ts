@@ -12,7 +12,7 @@ export const UserResolvers: Resolvers = {
       const db = await MongoDBSingleton.getInstance().db;
 
       const usersFound = await db.collection<UserDbObject>(USERS).find(
-        !args.query ? {} : {
+        {
           $text: { $search: args.query ?? "" }
         }, {
         projection: {
