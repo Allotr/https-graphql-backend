@@ -1,20 +1,12 @@
 
-import { Resolvers, OperationResult, ResourceDbObject, UserDbObject, LocalRole, TicketStatusCode, ErrorCode, User, ResourceCard, Ticket, RequestSource, ResourceManagementResult, WebPushSubscription, TicketViewUserInfo, TicketView, TicketStatus, ResourceUser, UpdateResult, ResourceNotificationDbObject } from "allotr-graphql-schema-types";
+import { Resolvers, OperationResult, ResourceDbObject, UserDbObject, LocalRole, TicketStatusCode, ErrorCode, ResourceManagementResult, TicketViewUserInfo, TicketView, TicketStatus, ResourceUser, UpdateResult, ResourceNotificationDbObject } from "allotr-graphql-schema-types";
 import { MongoDBSingleton } from "../../utils/mongodb-singleton";
-import { RedisSingleton } from "../../utils/redis-singleton";
 import { ObjectId, ReadPreference, WriteConcern, ReadConcern, TransactionOptions } from "mongodb"
-import { categorizeArrayData, customTryCatch, generateChannelId, getFirstQueuePosition, getLastStatus } from "../../utils/data-util";
+import { categorizeArrayData, customTryCatch, getFirstQueuePosition, getLastStatus } from "../../utils/data-util";
 import { CustomTryCatch } from "../../types/custom-try-catch";
-import { withFilter } from 'graphql-subscriptions';
-import { RESOURCE_CREATED, RESOURCE_READY_TO_PICK } from "../../consts/connection-tokens";
 import { canRequestStatusChange, hasAdminAccessInResource } from "../../guards/guards";
 import { enqueue, forwardQueue, generateOutputByResource, getResource, pushNotification, notifyFirstInQueue, pushNewStatus, removeAwaitingConfirmation } from "../../utils/resolver-utils";
 import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
-import { EnvLoader } from "../../utils/env-loader";
-import { RedisPubSub } from "graphql-redis-subscriptions";
-
-
-
 
 
 export const ResourceResolvers: Resolvers = {

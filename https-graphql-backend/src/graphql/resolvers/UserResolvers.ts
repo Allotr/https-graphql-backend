@@ -66,12 +66,10 @@ export const UserResolvers: Resolvers = {
       console.log("Pasa el primer bloqueo");
 
       for (const resource of activeResourceList) {
-        const releaseResourceFunction = ResourceResolvers?.Mutation?.releaseResource as Function;
-        if (releaseResourceFunction == null) {
-          continue;
-        }
+        const releaseResourceFunction = (ResourceResolvers as any)?.Mutation?.releaseResource;
+        console.log("Llama con el recurso", resource);
         try {
-          await releaseResourceFunction(undefined, { requestFrom: RequestSource.Resource, resourceId: new ObjectId(resource?._id ?? "").toHexString() ?? "" }, context)
+          await releaseResourceFunction?.(undefined, { requestFrom: RequestSource.Resource, resourceId: new ObjectId(resource?._id ?? "").toHexString() ?? "" }, context)
         } catch (e) {
           console.log("Some resource could not be released. Perhaps it was not active");
         }
