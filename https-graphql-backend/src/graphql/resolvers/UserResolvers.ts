@@ -1,8 +1,9 @@
 
-import { LocalRole, OperationResult, Resolvers, ResourceDbObject, ResourceNotificationDbObject, UserDbObject, UserDeletionResult } from "allotr-graphql-schema-types";
+import { LocalRole, OperationResult, RequestSource, Resolvers, ResourceDbObject, ResourceNotificationDbObject, TicketStatusCode, UserDbObject, UserDeletionResult } from "allotr-graphql-schema-types";
 import { MongoDBSingleton } from "../../utils/mongodb-singleton";
 import { ObjectId, ReadConcern, ReadPreference, TransactionOptions, WriteConcern } from "mongodb"
 import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
+import { ResourceResolvers } from "./ResourceResolvers";
 
 
 export const UserResolvers: Resolvers = {
@@ -45,6 +46,34 @@ export const UserResolvers: Resolvers = {
       const client = await MongoDBSingleton.getInstance().connection;
 
       let result: UserDeletionResult = { status: OperationResult.Ok };
+
+
+
+      // We must liberate all resources aquired before deleting the tickets
+      // This way we make sure that the queue progresses
+      // This code is not inside this operation session because it has its own session
+      const activeResourceList = await db.collection<ResourceDbObject>(RESOURCES).find({
+        "tickets.user._id": context.user._id,
+        "tickets.statuses.statusCode": TicketStatusCode.Active
+      }, {
+        projection: {
+          _id: 1
+        }
+      }).sort({
+        creationDate: 1
+      }).toArray();
+
+      for (const resource of activeResourceList) {
+        const releaseResourceFunction = ResourceResolvers?.Mutation?.releaseResource as Function;
+        if (releaseResourceFunction == null) {
+          continue;
+        }
+        try {
+          await releaseResourceFunction(undefined, { requestFrom: RequestSource.Resource, resourceId: new ObjectId(resource?._id ?? "").toHexString() ?? "" }, context)
+        } catch (e) {
+          console.log("Some resource could not be released. Perhaps it was not active");
+        }
+      }
 
       // Step 1: Start a Client Session
       const session = client.startSession();

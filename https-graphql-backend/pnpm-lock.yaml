@@ -11,7 +11,7 @@ specifiers:
   '@types/passport': ^1.0.7
   '@types/passport-google-oauth20': ^2.0.9
   '@types/web-push': ^3.3.2
-  allotr-graphql-schema-types: 0.0.12
+  allotr-graphql-schema-types: 0.0.13
   connect-mongo: ^4.5.0
   cors: ^2.8.5
   cpy-cli: ^3.1.1
@@ -40,7 +40,7 @@ dependencies:
   '@types/passport': 1.0.7
   '@types/passport-google-oauth20': 2.0.9
   '@types/web-push': 3.3.2
-  allotr-graphql-schema-types: 0.0.12
+  allotr-graphql-schema-types: 0.0.13
   connect-mongo: 4.5.0
   cors: 2.8.5
   express: 4.17.1
@@ -940,8 +940,8 @@ packages:
       indent-string: 4.0.0
     dev: true
 
-  /allotr-graphql-schema-types/0.0.12:
-    resolution: {integrity: sha512-DPvMLY8xNLZPx3+tIao1Nku8eAo6BWM16WG0wiVqbbhK+ZzpuSGt+Eeud5oZme1jxvql2zmCkiwHI13ol3UuYg==}
+  /allotr-graphql-schema-types/0.0.13:
+    resolution: {integrity: sha512-+kavbNI4yaiew3KFcoVSRJrSKZYXaXgan48pC2MpkJ+Ua4EYYRSrRZqQExZ6JwgohKVJ9R7ScRi3g2eIlOv9pw==}
     dependencies:
       '@graphql-codegen/typescript-mongodb': 2.1.2_339c8e4631a39e72b37b7f68d769d0af
       '@types/react': 17.0.19
