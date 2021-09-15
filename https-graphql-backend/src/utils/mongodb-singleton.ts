@@ -14,9 +14,18 @@ export class MongoDBSingleton {
             return;
         }
         console.log("Reconnecting... Hopefully it works now");
-        MongoDBSingleton.instance = new MongoDBSingleton()
-        // Finish the process. OpenFaas will instantiate this process again once called again
-        process.exit()
+        // It will retry to conenct for 5 minutes. This is to solve race conditions at initial connections
+        return new Promise<void>(resolve => {
+            let counter = 0;
+            const intervalId = setInterval(async () => {
+                if ((await this.internalConnection.catch(err => null)) != null || counter > 30) {
+                    clearInterval(intervalId);
+                    resolve();
+                }
+                MongoDBSingleton.instance = new MongoDBSingleton()
+                counter++;
+            }, 10 * 1000)
+        })
     }
 
     public static getInstance() {
