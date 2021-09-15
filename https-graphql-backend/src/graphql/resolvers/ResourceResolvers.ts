@@ -12,7 +12,7 @@ import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
 export const ResourceResolvers: Resolvers = {
     Query: {
         myResources: async (parent, args, context) => {
-            const db = await MongoDBSingleton.getInstance().db;
+            const db = await (await MongoDBSingleton.getInstance()).db;
 
 
             const myCurrentTicket = await db.collection<ResourceDbObject>(RESOURCES).find({
@@ -63,7 +63,7 @@ export const ResourceResolvers: Resolvers = {
         viewResource: async (parent, args, context) => {
 
             const { resourceId } = args;
-            const db = await MongoDBSingleton.getInstance().db;
+            const db = await (await MongoDBSingleton.getInstance()).db;
             const myResource = await db.collection<ResourceDbObject>(RESOURCES).findOne({
                 _id: new ObjectId(resourceId)
             });
@@ -151,7 +151,7 @@ export const ResourceResolvers: Resolvers = {
             const { name, description, maxActiveTickets, userList } = args.resource
             const timestamp = new Date();
 
-            const db = await MongoDBSingleton.getInstance().db;
+            const db = await (await MongoDBSingleton.getInstance()).db;
 
             // Check if user has entered himself as admin, it's important to do so
             const myUserIndex = userList.findIndex(user => new ObjectId(user.id).equals(context.user._id));
@@ -211,9 +211,9 @@ export const ResourceResolvers: Resolvers = {
             const { name, description, maxActiveTickets, userList: newUserList, id } = args.resource
             const timestamp = new Date();
 
-            const db = await MongoDBSingleton.getInstance().db;
+            const db = await (await MongoDBSingleton.getInstance()).db;
 
-            const client = await MongoDBSingleton.getInstance().connection;
+            const client = await (await MongoDBSingleton.getInstance()).connection;
 
             let result: UpdateResult = { status: OperationResult.Ok };
 
@@ -350,7 +350,7 @@ export const ResourceResolvers: Resolvers = {
         },
         deleteResource: async (parent, args, context) => {
             const { resourceId } = args
-            const db = await MongoDBSingleton.getInstance().db;
+            const db = await (await MongoDBSingleton.getInstance()).db;
 
             const hasAdminAccess = await hasAdminAccessInResource(context.user._id.toHexString() ?? "", resourceId)
             if (!hasAdminAccess) {
@@ -377,7 +377,7 @@ export const ResourceResolvers: Resolvers = {
             const { requestFrom, resourceId } = args
             const timestamp = new Date();
 
-            const client = await MongoDBSingleton.getInstance().connection;
+            const client = await (await MongoDBSingleton.getInstance()).connection;
 
             let result: ResourceManagementResult = { status: OperationResult.Ok };
 
@@ -448,7 +448,7 @@ export const ResourceResolvers: Resolvers = {
             const { resourceId } = args
             const timestamp = new Date();
 
-            const client = await MongoDBSingleton.getInstance().connection;
+            const client = await (await MongoDBSingleton.getInstance()).connection;
 
             let result: ResourceManagementResult = { status: OperationResult.Ok };
 
@@ -516,7 +516,7 @@ export const ResourceResolvers: Resolvers = {
             const { resourceId } = args
             const timestamp = new Date();
 
-            const client = await MongoDBSingleton.getInstance().connection;
+            const client = await (await MongoDBSingleton.getInstance()).connection;
 
             let result: ResourceManagementResult = { status: OperationResult.Ok };
 
@@ -589,7 +589,7 @@ export const ResourceResolvers: Resolvers = {
             const { requestFrom, resourceId } = args
             const timestamp = new Date();
 
-            const client = await MongoDBSingleton.getInstance().connection;
+            const client = await (await MongoDBSingleton.getInstance()).connection;
 
             let result: ResourceManagementResult = { status: OperationResult.Ok };
 

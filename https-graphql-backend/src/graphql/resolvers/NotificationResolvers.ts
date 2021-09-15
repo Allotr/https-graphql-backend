@@ -7,7 +7,7 @@ import { NOTIFICATIONS } from "../../consts/collections";
 export const NotificationResolvers: Resolvers = {
     Query: {
         myNotificationData: async (parent, args, context) => {
-            const db = await MongoDBSingleton.getInstance().db;
+            const db = await (await MongoDBSingleton.getInstance()).db;
 
             const userNotifications = await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).find({
                 "user._id": context.user._id

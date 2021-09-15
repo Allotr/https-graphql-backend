@@ -35,7 +35,7 @@ function initializeWebPush(app: express.Express) {
         const subscription = req?.body?.subscription as WebPushSubscription;
         const { _id } = req.user as UserDbObject;
 
-        const db = await MongoDBSingleton.getInstance().db;
+        const db = await (await MongoDBSingleton.getInstance()).db;
 
         await db.collection(USERS).updateOne({
             _id, "webPushSubscriptions.endpoint": { $ne: subscription.endpoint }
@@ -54,7 +54,7 @@ function initializeWebPush(app: express.Express) {
     app.post('/webpush/unregister', isLoggedIn, async (req, res) => {
         const subscription = req?.body?.subscription as WebPushSubscription;
         const { _id } = req.user as UserDbObject;
-        const db = await MongoDBSingleton.getInstance().db;
+        const db = await (await MongoDBSingleton.getInstance()).db;
 
         await db.collection(USERS).updateOne({
             _id

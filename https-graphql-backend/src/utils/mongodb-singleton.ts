@@ -19,20 +19,22 @@ export class MongoDBSingleton {
             let counter = 0;
             const intervalId = setInterval(async () => {
                 if ((await this.internalConnection.catch(err => null)) != null || counter > 30) {
+                    console.log("Its working now!");
                     clearInterval(intervalId);
                     resolve();
                 }
+                console.log("Retries...")
                 MongoDBSingleton.instance = new MongoDBSingleton()
                 counter++;
             }, 10 * 1000)
         })
     }
 
-    public static getInstance() {
+    public static async getInstance() {
         if (!MongoDBSingleton.instance) {
             MongoDBSingleton.instance = new MongoDBSingleton()
         }
-        MongoDBSingleton.instance.checkConnectionAndReconnect();
+        await MongoDBSingleton.instance.checkConnectionAndReconnect();
         return MongoDBSingleton.instance;
     }
 

@@ -8,7 +8,7 @@ import { RESOURCE_READY_TO_PICK } from "../consts/connection-tokens";
 import { RedisSingleton } from "./redis-singleton";
 import { VALID_STATUES_MAP } from "src/consts/valid-statuses-map";
 async function getUserTicket(userId: string | ObjectId, resourceId: string, myDb?: Db): Promise<ResourceDbObject | null> {
-    const db = myDb ?? await MongoDBSingleton.getInstance().db;
+    const db = myDb ?? await (await MongoDBSingleton.getInstance()).db;
     const [parsedUserId, parsedResourceId] = [new ObjectId(userId), new ObjectId(resourceId)];
 
     const [userTikcet] = await db.collection<ResourceDbObject>(RESOURCES).find({
@@ -37,7 +37,7 @@ async function getUserTicket(userId: string | ObjectId, resourceId: string, myDb
 }
 
 async function getResource(resourceId: string): Promise<ResourceDbObject | null | undefined> {
-    const db = await MongoDBSingleton.getInstance().db;
+    const db = await (await MongoDBSingleton.getInstance()).db;
 
     const userTikcet = await db.collection<ResourceDbObject>(RESOURCES).findOne({
         _id: new ObjectId(resourceId),
@@ -50,7 +50,7 @@ async function getResource(resourceId: string): Promise<ResourceDbObject | null 
 }
 
 async function getAwaitingTicket(resourceId: string): Promise<ResourceDbObject | null> {
-    const db = await MongoDBSingleton.getInstance().db;
+    const db = await (await MongoDBSingleton.getInstance()).db;
     const parsedResourceId = new ObjectId(resourceId);
     const [userTikcet] = await db.collection<ResourceDbObject>(RESOURCES).find({
         _id: parsedResourceId,
@@ -76,7 +76,7 @@ async function getAwaitingTicket(resourceId: string): Promise<ResourceDbObject |
 
 
 async function getUser(userId?: ObjectId | null): Promise<UserDbObject | null | undefined> {
-    const db = await MongoDBSingleton.getInstance().db;
+    const db = await (await MongoDBSingleton.getInstance()).db;
     const userTikcet = await db.collection<UserDbObject>(USERS).findOne({
         _id: userId,
     })
@@ -103,7 +103,7 @@ async function pushNewStatus(
     session: ClientSession,
     previousStatus?: TicketStatusCode) {
 
-    const db = await MongoDBSingleton.getInstance().db;
+    const db = await (await MongoDBSingleton.getInstance()).db;
     // Add 1ms to make sure the statuses are in order
     const newTimestamp = addMSToTime(timestamp, executionPosition)
 
@@ -146,7 +146,7 @@ async function enqueue(
     session: ClientSession
 ) {
     const resource = await getResource(resourceId)
-    const db = await MongoDBSingleton.getInstance().db;
+    const db = await (await MongoDBSingleton.getInstance()).db;
     const timestamp = addMSToTime(currentDate, executionPosition)
 
     await db.collection(RESOURCES).updateOne({ _id: new ObjectId(resourceId) }, {
@@ -177,7 +177,7 @@ async function forwardQueue(
     session: ClientSession,
     myDb?: Db
 ) {
-    const db = myDb ?? await MongoDBSingleton.getInstance().db;
+    const db = myDb ?? await (await MongoDBSingleton.getInstance()).db;
     const timestamp = addMSToTime(currentDate, executionPosition)
 
     await db.collection(RESOURCES).updateOne({
@@ -205,7 +205,7 @@ async function removeAwaitingConfirmation(
     resourceId: string,
     firstQueuePosition: number,
     session: ClientSession) {
-    const db = await MongoDBSingleton.getInstance().db;
+    const db = await (await MongoDBSingleton.getInstance()).db;
     // Delete notification
     const userId = (await getAwaitingTicket(resourceId))?.tickets?.[0].user?._id;
     await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).deleteOne(
@@ -239,7 +239,7 @@ async function notifyFirstInQueue(
     executionPosition: number,
     firstQueuePosition: number,
     session?: ClientSession) {
-    const db = await MongoDBSingleton.getInstance().db;
+    const db = await (await MongoDBSingleton.getInstance()).db;
     // Add 1ms to make sure the statuses are in order
     const timestamp = addMSToTime(currentDate, executionPosition)
     await db.collection(RESOURCES).updateOne({
@@ -296,7 +296,7 @@ const generateOutputByResource: Record<RequestSource, (resource: ResourceDbObjec
 
 async function pushNotification(resourceName: string, resourceId: ObjectId | null | undefined,
     createdByUserId: ObjectId | null | undefined, createdByUsername: string | undefined, timestamp: Date) {
-    const db = await MongoDBSingleton.getInstance().db;
+    const db = await (await MongoDBSingleton.getInstance()).db;
 
     // let's notify all the WebPush links associated with the user
     const resource = await getAwaitingTicket(resourceId?.toHexString() ?? "");

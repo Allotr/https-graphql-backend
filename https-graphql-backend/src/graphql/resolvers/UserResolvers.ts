@@ -10,7 +10,7 @@ export const UserResolvers: Resolvers = {
   Query: {
     currentUser: (parent, args, context) => context.user,
     searchUsers: async (parent, args, context) => {
-      const db = await MongoDBSingleton.getInstance().db;
+      const db = await (await MongoDBSingleton.getInstance()).db;
 
       const usersFound = await db.collection<UserDbObject>(USERS).find(
         {
@@ -40,9 +40,9 @@ export const UserResolvers: Resolvers = {
         return { status: OperationResult.Error }
       }
 
-      const db = await MongoDBSingleton.getInstance().db;
+      const db = await (await MongoDBSingleton.getInstance()).db;
 
-      const client = await MongoDBSingleton.getInstance().connection;
+      const client = await (await MongoDBSingleton.getInstance()).connection;
 
       let result: UserDeletionResult = { status: OperationResult.Ok };
 
