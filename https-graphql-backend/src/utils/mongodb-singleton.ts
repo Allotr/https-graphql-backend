@@ -15,6 +15,8 @@ export class MongoDBSingleton {
         }
         console.log("Reconnecting... Hopefully it works now");
         MongoDBSingleton.instance = new MongoDBSingleton()
+        // Finish the process. OpenFaas will instantiate this process again once called again
+        process.exit()
     }
 
     public static getInstance() {
