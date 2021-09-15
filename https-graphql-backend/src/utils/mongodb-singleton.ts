@@ -25,7 +25,7 @@ export class MongoDBSingleton {
                 }
                 console.log("Retries...")
                 MongoDBSingleton.instance = new MongoDBSingleton()
-                console.log("Result of reconnection: ",await this.internalConnection, MongoDBSingleton.instance)
+                console.log("Result of reconnection: ",await this.internalConnection, await this.connection, await this.db, MongoDBSingleton.instance)
                 counter++;
             }, 20 * 1000)
         })
