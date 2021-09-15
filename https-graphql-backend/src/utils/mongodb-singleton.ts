@@ -19,12 +19,13 @@ export class MongoDBSingleton {
             let counter = 0;
             const intervalId = setInterval(async () => {
                 if ((await this.internalConnection.catch(err => null)) != null || counter > 30) {
-                    console.log("Its working now!");
+                    console.log(counter <= 30 ? "Its working now!" : "Timed out retries...");
                     clearInterval(intervalId);
                     resolve();
                 }
                 console.log("Retries...")
                 MongoDBSingleton.instance = new MongoDBSingleton()
+                console.log("Result of reconnection: ",this.internalConnection, MongoDBSingleton.instance)
                 counter++;
             }, 10 * 1000)
         })
@@ -39,12 +40,11 @@ export class MongoDBSingleton {
     }
 
     private constructor() {
+        console.log("MongoDB constructor called");
         const { MONGO_DB_ENDPOINT, DB_NAME } = EnvLoader.getInstance().loadedVariables;
         const client = new MongoClient(MONGO_DB_ENDPOINT);
         const dbConnection = client.connect().catch(reason => {
             console.log("error in init connect", reason)
-            client.close();
-            return null;
         }) as Promise<MongoClient>;
         this.internalConnection = dbConnection;
         this.internalDB = dbConnection?.then(connection => connection?.db(DB_NAME), error => {
