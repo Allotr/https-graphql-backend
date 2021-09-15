@@ -13,8 +13,7 @@ export class MongoDBSingleton {
         if ((await this.internalConnection) != null) {
             return;
         }
-        console.log("Reconnecting... Hopefully it works now");
-        MongoDBSingleton.instance = new MongoDBSingleton()
+        throw new Error("Bad connection, stopping server!");
     }
 
     public static getInstance() {
