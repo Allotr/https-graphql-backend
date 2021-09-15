@@ -10,10 +10,11 @@ export class MongoDBSingleton {
     public db: Promise<Db>;
 
     private async checkConnectionAndReconnect() {
-        if ((await this.internalConnection) != null) {
+        if ((await this.internalConnection.catch(err => null)) != null) {
             return;
         }
-        throw new Error("Bad connection, stopping server!");
+        console.log("Reconnecting... Hopefully it works now");
+        MongoDBSingleton.instance = new MongoDBSingleton()
     }
 
     public static getInstance() {
@@ -25,20 +26,15 @@ export class MongoDBSingleton {
     }
 
     private constructor() {
-        this.internalConnection = Promise.resolve(null);
         const { MONGO_DB_ENDPOINT, DB_NAME } = EnvLoader.getInstance().loadedVariables;
-
-        // Check errors in Mongo Client connection
         const client = new MongoClient(MONGO_DB_ENDPOINT);
-        const dbConnection = client.connect().then(connection => connection,
-            reason => {
-                console.log("error in init connect", reason)
-                client.close()
-                return null;
-            }) as Promise<MongoClient>;
+        const dbConnection = client.connect().catch(reason => {
+            console.log("error in init connect", reason)
+            client.close();
+            return null;
+        }) as Promise<MongoClient>;
         this.internalConnection = dbConnection;
-        // Check erros in DB connection
-        this.internalDB = dbConnection.then(connection => connection?.db(DB_NAME), error => {
+        this.internalDB = dbConnection?.then(connection => connection?.db(DB_NAME), error => {
             console.log("error in connection", error);
             this.internalConnection = Promise.resolve(null);
             client.close()
