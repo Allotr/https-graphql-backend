@@ -28,7 +28,11 @@ export class MongoDBSingleton {
     private constructor() {
         const { MONGO_DB_ENDPOINT, DB_NAME } = EnvLoader.getInstance().loadedVariables;
         const client = new MongoClient(MONGO_DB_ENDPOINT);
-        const dbConnection = client.connect().catch(reason=> console.log("error in init connect", reason))  as Promise<MongoClient>;
+        const dbConnection = client.connect().catch(reason => {
+            console.log("error in init connect", reason)
+            this.internalConnection = Promise.resolve(null);
+            client.close()
+        }) as Promise<MongoClient>;
         this.internalConnection = dbConnection;
         this.internalDB = dbConnection.then(connection => connection?.db(DB_NAME), error => {
             console.log("error in connection", error);
