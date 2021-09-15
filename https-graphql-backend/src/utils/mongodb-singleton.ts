@@ -18,16 +18,16 @@ export class MongoDBSingleton {
         return new Promise<void>(resolve => {
             let counter = 0;
             const intervalId = setInterval(async () => {
-                if ((await this.internalConnection.catch(err => null)) != null || counter > 30) {
+                if ((await this.internalConnection.catch(err => null)) != null || counter > 15) {
                     console.log(counter <= 30 ? "Its working now!" : "Timed out retries...");
                     clearInterval(intervalId);
                     resolve();
                 }
                 console.log("Retries...")
                 MongoDBSingleton.instance = new MongoDBSingleton()
-                console.log("Result of reconnection: ",this.internalConnection, MongoDBSingleton.instance)
+                console.log("Result of reconnection: ",await this.internalConnection, MongoDBSingleton.instance)
                 counter++;
-            }, 10 * 1000)
+            }, 20 * 1000)
         })
     }
 
