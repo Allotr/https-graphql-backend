@@ -39,7 +39,7 @@ function initializeGooglePassport(app: express.Express) {
         secret: SESSION_SECRET,
         resave: false,
         saveUninitialized: false,
-        cookie: { domain: '.allotr.eu' },
+        cookie: { domain: '.allotr.eu', maxAge: 30 * 24 * 60 * 60 * 1000 },
         store: new MongoStore({ mongoUrl: MONGO_DB_ENDPOINT }),
     })
 
