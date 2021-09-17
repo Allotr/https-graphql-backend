@@ -75,10 +75,6 @@ export const UserResolvers: Resolvers = {
       const queuedResourceList = await db.collection<ResourceDbObject>(RESOURCES).find({
         "tickets.user._id": context.user._id,
         "tickets.statuses.statusCode": TicketStatusCode.Queued
-      }, {
-        projection: {
-          _id: 1
-        }
       }).sort({
         creationDate: 1
       }).toArray();
