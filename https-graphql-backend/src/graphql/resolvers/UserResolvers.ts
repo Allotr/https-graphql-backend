@@ -4,6 +4,7 @@ import { MongoDBSingleton } from "../../utils/mongodb-singleton";
 import { ObjectId, ReadConcern, ReadPreference, TransactionOptions, WriteConcern } from "mongodb"
 import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
 import { ResourceResolvers } from "./ResourceResolvers";
+import { removeUsersInQueue } from "../../utils/resolver-utils";
 
 
 export const UserResolvers: Resolvers = {
@@ -46,7 +47,7 @@ export const UserResolvers: Resolvers = {
 
       let result: UserDeletionResult = { status: OperationResult.Ok };
 
-
+      const timestamp = new Date();
 
       // We must liberate all resources aquired before deleting the tickets
       // This way we make sure that the queue progresses
@@ -68,6 +69,21 @@ export const UserResolvers: Resolvers = {
           await releaseResourceFunction?.(undefined, { requestFrom: RequestSource.Resource, resourceId: new ObjectId(resource?._id ?? "").toHexString() ?? "" }, context)
         } catch (e) {
           console.log("Some resource could not be released. Perhaps it was not active");
+        }
+      }
+
+      const queuedResourceList = await db.collection<ResourceDbObject>(RESOURCES).find({
+        "tickets.user._id": context.user._id,
+        "tickets.statuses.statusCode": TicketStatusCode.Queued
+      }).sort({
+        creationDate: 1
+      }).toArray();
+
+      for (const resource of queuedResourceList) {
+        try {
+          await removeUsersInQueue(resource, [{ id: userId, role: LocalRole.ResourceUser }], timestamp, 2);
+        } catch (e) {
+          console.log("Some resource could not be released. Perhaps it was not queued");
         }
       }
 

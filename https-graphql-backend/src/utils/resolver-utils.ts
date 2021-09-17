@@ -1,4 +1,4 @@
-import { Resolvers, OperationResult, ResourceDbObject, UserDbObject, LocalRole, TicketStatusCode, ErrorCode, User, ResourceCard, Ticket, RequestSource, ResourceManagementResult, ResourceNotification, ResourceNotificationDbObject, WebPushSubscription } from "allotr-graphql-schema-types";
+import { Resolvers, OperationResult, ResourceDbObject, UserDbObject, LocalRole, TicketStatusCode, ErrorCode, User, ResourceCard, Ticket, RequestSource, ResourceManagementResult, ResourceNotification, ResourceNotificationDbObject, WebPushSubscription, Resource, ResourceUser } from "allotr-graphql-schema-types";
 import { MongoDBSingleton } from "./mongodb-singleton";
 import { ObjectId, ClientSession, Db } from "mongodb";
 import { addMSToTime, generateChannelId, getLastQueuePosition, getLastStatus } from "./data-util";
@@ -201,6 +201,70 @@ async function forwardQueue(
     })
 }
 
+async function removeUsersInQueue(resource: ResourceDbObject, userList: ResourceUser[], currentDate: Date,
+    executionPosition: number, session?: ClientSession) {
+    const db = await (await MongoDBSingleton.getInstance()).db;
+    const timestamp = addMSToTime(currentDate, executionPosition)
+    const deletionUsersQueuePosition = userList
+        .map<number>(
+            ({ id }) => {
+                const myTicket = resource.tickets.find(({ user }) => new ObjectId(user._id ?? "").equals(id));
+                if (myTicket == null) {
+                    return -1;
+                }
+                const queuedStatus = myTicket.statuses.find(({ statusCode }) => statusCode === TicketStatusCode.Queued);
+                if (queuedStatus == null) {
+                    return -1;
+                }
+                return queuedStatus.queuePosition ?? -1;
+            }
+        )
+        .filter(value => value !== -1)
+        .sort();
+    for (let index = 0; index < deletionUsersQueuePosition.length; index++) {
+        const queuePosition = deletionUsersQueuePosition[index];
+        const nextQueuePosition = deletionUsersQueuePosition?.[index + 1] ?? Number.MAX_SAFE_INTEGER;
+        await db.collection(RESOURCES).updateOne({
+            _id: new ObjectId(resource._id ?? ""),
+        }, {
+            $set: {
+                lastModificationDate: timestamp,
+                "tickets.$[].statuses.$[myStatus].timestamp": timestamp
+            },
+            $inc: {
+                "tickets.$[].statuses.$[myStatus].queuePosition": -1
+            }
+        }, {
+            session,
+            arrayFilters: [
+                {
+                    $and: [{ "myStatus.queuePosition": { $gt: queuePosition } }, { "myStatus.queuePosition": { $lt: nextQueuePosition } }]
+                },
+            ],
+        })
+    }
+    // Delete notifications
+    await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).deleteMany({
+        "resource._id": new ObjectId(resource._id ?? ""),
+        "user._id": {
+            $in: [...userList?.map(({ id }) => !!id ? new ObjectId(id) : null).filter(Boolean)]
+        }
+    })
+
+
+    await db.collection<ResourceDbObject>(RESOURCES).updateMany({
+        _id: new ObjectId(resource._id ?? ""),
+    }, {
+        $pull: {
+            tickets: {
+                "user._id": { $in: [...userList?.map(({ id }) => !!id ? new ObjectId(id) : null).filter(Boolean)] }
+            }
+        } as any
+    }, {
+        session
+    })
+}
+
 async function removeAwaitingConfirmation(
     resourceId: string,
     firstQueuePosition: number,
@@ -353,4 +417,4 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
 
 }
 
-export { getUserTicket, getResource, pushNewStatus, enqueue, forwardQueue, notifyFirstInQueue, generateOutputByResource, pushNotification, getAwaitingTicket, removeAwaitingConfirmation }
+export { getUserTicket, getResource, pushNewStatus, enqueue, forwardQueue, notifyFirstInQueue, generateOutputByResource, pushNotification, getAwaitingTicket, removeAwaitingConfirmation, removeUsersInQueue }
