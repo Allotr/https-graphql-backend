@@ -221,11 +221,9 @@ async function removeUsersInQueue(resource: ResourceDbObject, userList: Resource
         )
         .filter(value => value !== -1)
         .sort();
-    console.log("REMOVE USERS IN QUEUEEEEEEEEEEEE", { deletionUsersQueuePosition })
     for (let index = 0; index < deletionUsersQueuePosition.length; index++) {
         const queuePosition = deletionUsersQueuePosition[index];
         const nextQueuePosition = deletionUsersQueuePosition?.[index + 1] ?? Number.MAX_SAFE_INTEGER;
-        console.log({ queuePosition, nextQueuePosition });
         await db.collection(RESOURCES).updateOne({
             _id: new ObjectId(resource._id ?? ""),
         }, {

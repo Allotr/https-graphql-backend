@@ -74,7 +74,7 @@ export const UserResolvers: Resolvers = {
 
       const queuedResourceList = await db.collection<ResourceDbObject>(RESOURCES).find({
         "tickets.user._id": context.user._id,
-        "tickets.statuses.statusCode": TicketStatusCode.Active
+        "tickets.statuses.statusCode": TicketStatusCode.Queued
       }, {
         projection: {
           _id: 1
@@ -87,7 +87,7 @@ export const UserResolvers: Resolvers = {
         try {
           await removeUsersInQueue(resource, [{ id: userId, role: LocalRole.ResourceUser }], timestamp, 2);
         } catch (e) {
-          console.log("Some resource could not be released. Perhaps it was not active");
+          console.log("Some resource could not be released. Perhaps it was not queued");
         }
       }
 
