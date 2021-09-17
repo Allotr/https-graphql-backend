@@ -8,7 +8,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import session from "express-session";
 import MongoStore from 'connect-mongo';
 import { USERS } from "../consts/collections";
-import { getMongoDBConnection } from "utils/mongodb-connector";
+import { getMongoDBConnection } from "../utils/mongodb-connector";
 // import { GraphQLLocalStrategy, buildContext, createOnConnect } from 'graphql-passport';
 const cors = require('cors');
 
