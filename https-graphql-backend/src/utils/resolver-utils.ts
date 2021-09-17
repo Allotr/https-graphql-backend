@@ -1,14 +1,12 @@
 import { Resolvers, OperationResult, ResourceDbObject, UserDbObject, LocalRole, TicketStatusCode, ErrorCode, User, ResourceCard, Ticket, RequestSource, ResourceManagementResult, ResourceNotification, ResourceNotificationDbObject, WebPushSubscription, Resource, ResourceUser } from "allotr-graphql-schema-types";
-import { MongoDBSingleton } from "./mongodb-singleton";
 import { ObjectId, ClientSession, Db } from "mongodb";
 import { addMSToTime, generateChannelId, getLastQueuePosition, getLastStatus } from "./data-util";
 import { NOTIFICATIONS, RESOURCES, USERS } from "../consts/collections";
 import { sendNotification } from "../notifications/web-push";
 import { RESOURCE_READY_TO_PICK } from "../consts/connection-tokens";
-import { RedisSingleton } from "./redis-singleton";
 import { VALID_STATUES_MAP } from "src/consts/valid-statuses-map";
-async function getUserTicket(userId: string | ObjectId, resourceId: string, myDb?: Db): Promise<ResourceDbObject | null> {
-    const db = myDb ?? await (await MongoDBSingleton.getInstance()).db;
+import { getRedisConnection } from "./redis-connector";
+async function getUserTicket(userId: string | ObjectId, resourceId: string, db: Db): Promise<ResourceDbObject | null> {
     const [parsedUserId, parsedResourceId] = [new ObjectId(userId), new ObjectId(resourceId)];
 
     const [userTikcet] = await db.collection<ResourceDbObject>(RESOURCES).find({
@@ -36,8 +34,8 @@ async function getUserTicket(userId: string | ObjectId, resourceId: string, myDb
     return userTikcet;
 }
 
-async function getResource(resourceId: string): Promise<ResourceDbObject | null | undefined> {
-    const db = await (await MongoDBSingleton.getInstance()).db;
+async function getResource(resourceId: string, db: Db): Promise<ResourceDbObject | null | undefined> {
+
 
     const userTikcet = await db.collection<ResourceDbObject>(RESOURCES).findOne({
         _id: new ObjectId(resourceId),
@@ -49,8 +47,8 @@ async function getResource(resourceId: string): Promise<ResourceDbObject | null 
     return userTikcet;
 }
 
-async function getAwaitingTicket(resourceId: string): Promise<ResourceDbObject | null> {
-    const db = await (await MongoDBSingleton.getInstance()).db;
+async function getAwaitingTicket(resourceId: string, db: Db): Promise<ResourceDbObject | null> {
+
     const parsedResourceId = new ObjectId(resourceId);
     const [userTikcet] = await db.collection<ResourceDbObject>(RESOURCES).find({
         _id: parsedResourceId,
@@ -75,8 +73,7 @@ async function getAwaitingTicket(resourceId: string): Promise<ResourceDbObject |
 }
 
 
-async function getUser(userId?: ObjectId | null): Promise<UserDbObject | null | undefined> {
-    const db = await (await MongoDBSingleton.getInstance()).db;
+async function getUser(userId: ObjectId | null | undefined, db: Db): Promise<UserDbObject | null | undefined> {
     const userTikcet = await db.collection<UserDbObject>(USERS).findOne({
         _id: userId,
     })
@@ -101,9 +98,11 @@ async function pushNewStatus(
     },
     executionPosition: number,
     session: ClientSession,
-    previousStatus?: TicketStatusCode) {
+    db: Db,
+    previousStatus?: TicketStatusCode,
+) {
 
-    const db = await (await MongoDBSingleton.getInstance()).db;
+
     // Add 1ms to make sure the statuses are in order
     const newTimestamp = addMSToTime(timestamp, executionPosition)
 
@@ -143,10 +142,11 @@ async function enqueue(
     ticketId: ObjectId | undefined | null,
     currentDate: Date,
     executionPosition: number,
-    session: ClientSession
+    session: ClientSession,
+    db: Db
 ) {
-    const resource = await getResource(resourceId)
-    const db = await (await MongoDBSingleton.getInstance()).db;
+    const resource = await getResource(resourceId, db)
+
     const timestamp = addMSToTime(currentDate, executionPosition)
 
     await db.collection(RESOURCES).updateOne({ _id: new ObjectId(resourceId) }, {
@@ -175,9 +175,8 @@ async function forwardQueue(
     currentDate: Date,
     executionPosition: number,
     session: ClientSession,
-    myDb?: Db
+    db: Db
 ) {
-    const db = myDb ?? await (await MongoDBSingleton.getInstance()).db;
     const timestamp = addMSToTime(currentDate, executionPosition)
 
     await db.collection(RESOURCES).updateOne({
@@ -202,8 +201,8 @@ async function forwardQueue(
 }
 
 async function removeUsersInQueue(resource: ResourceDbObject, userList: ResourceUser[], currentDate: Date,
-    executionPosition: number, session?: ClientSession) {
-    const db = await (await MongoDBSingleton.getInstance()).db;
+    executionPosition: number, db: Db, session?: ClientSession) {
+
     const timestamp = addMSToTime(currentDate, executionPosition)
     const deletionUsersQueuePosition = userList
         .map<number>(
@@ -268,10 +267,12 @@ async function removeUsersInQueue(resource: ResourceDbObject, userList: Resource
 async function removeAwaitingConfirmation(
     resourceId: string,
     firstQueuePosition: number,
-    session: ClientSession) {
-    const db = await (await MongoDBSingleton.getInstance()).db;
+    session: ClientSession,
+    db: Db
+) {
+
     // Delete notification
-    const userId = (await getAwaitingTicket(resourceId))?.tickets?.[0].user?._id;
+    const userId = (await getAwaitingTicket(resourceId, db))?.tickets?.[0].user?._id;
     await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).deleteOne(
         {
             "resource._id": new ObjectId(resourceId),
@@ -302,8 +303,10 @@ async function notifyFirstInQueue(
     currentDate: Date,
     executionPosition: number,
     firstQueuePosition: number,
-    session?: ClientSession) {
-    const db = await (await MongoDBSingleton.getInstance()).db;
+    db: Db,
+    session?: ClientSession
+) {
+
     // Add 1ms to make sure the statuses are in order
     const timestamp = addMSToTime(currentDate, executionPosition)
     await db.collection(RESOURCES).updateOne({
@@ -324,7 +327,7 @@ async function notifyFirstInQueue(
 }
 
 
-const generateOutputByResource: Record<RequestSource, (resource: ResourceDbObject, userId: ObjectId, resourceId: string) => ResourceManagementResult> = {
+const generateOutputByResource: Record<RequestSource, (resource: ResourceDbObject, userId: ObjectId, resourceId: string, db: Db) => ResourceManagementResult> = {
     HOME: ({ activeUserCount, creationDate, createdBy, lastModificationDate, name, description, tickets, maxActiveTickets }, userId, resourceId) => {
         const myTicket = tickets?.[0];
         const { statusCode, timestamp: lastStatusTimestamp, queuePosition } = getLastStatus(tickets.find(({ user }) => user._id?.equals(userId)));
@@ -359,11 +362,11 @@ const generateOutputByResource: Record<RequestSource, (resource: ResourceDbObjec
 
 
 async function pushNotification(resourceName: string, resourceId: ObjectId | null | undefined,
-    createdByUserId: ObjectId | null | undefined, createdByUsername: string | undefined, timestamp: Date) {
-    const db = await (await MongoDBSingleton.getInstance()).db;
+    createdByUserId: ObjectId | null | undefined, createdByUsername: string | undefined, timestamp: Date, db: Db) {
+
 
     // let's notify all the WebPush links associated with the user
-    const resource = await getAwaitingTicket(resourceId?.toHexString() ?? "");
+    const resource = await getAwaitingTicket(resourceId?.toHexString() ?? "", db);
     const ticket = resource?.tickets[0];
     const user = ticket?.user;
 
@@ -384,7 +387,7 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
     await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).insertOne(notificationData);
 
     // Finally, we obtain the destined user subscriptions
-    const fullReceivingUser = await getUser(user?._id);
+    const fullReceivingUser = await getUser(user?._id, db);
     if (fullReceivingUser == null) {
         return;
     }
@@ -396,7 +399,7 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
         sendNotification({ endpoint: subscription.endpoint ?? "", keys: { auth: subscription.keys?.auth ?? "", p256dh: subscription.keys?.p256dh ?? "" } })
     })
 
-    RedisSingleton.getInstance().pubsub.publish(generateChannelId(RESOURCE_READY_TO_PICK, user?._id), {
+    getRedisConnection().pubsub.publish(generateChannelId(RESOURCE_READY_TO_PICK, user?._id), {
         myNotificationDataSub: [
             {
                 ticketStatus: notificationData.ticketStatus as TicketStatusCode,

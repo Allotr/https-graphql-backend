@@ -1,6 +1,5 @@
 import express from "express";
-import { EnvLoader } from "../utils/env-loader";
-import { MongoDBSingleton } from "../utils/mongodb-singleton";
+import { getLoadedEnvVariables } from "../utils/env-loader";
 import { UserDbObject, GlobalRole } from "allotr-graphql-schema-types";
 import { ObjectId } from "mongodb"
 
@@ -9,6 +8,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import session from "express-session";
 import MongoStore from 'connect-mongo';
 import { USERS } from "../consts/collections";
+import { getMongoDBConnection } from "../utils/mongodb-connector";
 // import { GraphQLLocalStrategy, buildContext, createOnConnect } from 'graphql-passport';
 const cors = require('cors');
 
@@ -29,7 +29,7 @@ function initializeGooglePassport(app: express.Express) {
         GOOGLE_CALLBACK_URL,
         MONGO_DB_ENDPOINT,
         SESSION_SECRET,
-        REDIRECT_URL } = EnvLoader.getInstance().loadedVariables;
+        REDIRECT_URL } = getLoadedEnvVariables();
     const corsOptions = {
         origin: REDIRECT_URL,
         credentials: true // <-- REQUIRED backend setting
@@ -62,7 +62,7 @@ function initializeGooglePassport(app: express.Express) {
             },
             async (accessToken, refreshToken, profile, done) => {
                 // passport callback function
-                const db = await (await MongoDBSingleton.getInstance()).db;
+                const db = await (await getMongoDBConnection()).db;
                 const currentUser = await db.collection<UserDbObject>(USERS).findOne({ oauthIds: { googleId: profile.id } })
                 //check if user already exists in our db with the given profile ID
                 if (currentUser) {
@@ -94,7 +94,7 @@ function initializeGooglePassport(app: express.Express) {
 
     passport.deserializeUser<ObjectId>(async (id, done) => {
         try {
-            const db = await (await MongoDBSingleton.getInstance()).db;
+            const db = await (await getMongoDBConnection()).db;
             const idToSearch = new ObjectId(id);
             const user = await db.collection<UserDbObject>(USERS).findOne({ _id: idToSearch });
             done(null, user);

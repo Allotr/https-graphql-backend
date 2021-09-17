@@ -1,18 +1,18 @@
 
 import { Resolvers, OperationResult, ResourceDbObject, UserDbObject, LocalRole, TicketStatusCode, ErrorCode, ResourceManagementResult, TicketViewUserInfo, TicketView, TicketStatus, ResourceUser, UpdateResult, ResourceNotificationDbObject } from "allotr-graphql-schema-types";
-import { MongoDBSingleton } from "../../utils/mongodb-singleton";
 import { ObjectId, ReadPreference, WriteConcern, ReadConcern, TransactionOptions } from "mongodb"
 import { categorizeArrayData, customTryCatch, getFirstQueuePosition, getLastStatus } from "../../utils/data-util";
 import { CustomTryCatch } from "../../types/custom-try-catch";
 import { canRequestStatusChange, hasAdminAccessInResource } from "../../guards/guards";
 import { enqueue, forwardQueue, generateOutputByResource, getResource, pushNotification, notifyFirstInQueue, pushNewStatus, removeAwaitingConfirmation, removeUsersInQueue } from "../../utils/resolver-utils";
 import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
+import express from "express";
 
 
 export const ResourceResolvers: Resolvers = {
     Query: {
-        myResources: async (parent, args, context) => {
-            const db = await (await MongoDBSingleton.getInstance()).db;
+        myResources: async (parent, args, context: express.Request) => {
+            const db = await (await context.mongoDBConnection).db;
 
 
             const myCurrentTicket = await db.collection<ResourceDbObject>(RESOURCES).find({
@@ -60,10 +60,10 @@ export const ResourceResolvers: Resolvers = {
 
             return resourceList;
         },
-        viewResource: async (parent, args, context) => {
+        viewResource: async (parent, args, context: express.Request) => {
 
             const { resourceId } = args;
-            const db = await (await MongoDBSingleton.getInstance()).db;
+            const db = await (await context.mongoDBConnection).db;
             const myResource = await db.collection<ResourceDbObject>(RESOURCES).findOne({
                 _id: new ObjectId(resourceId)
             });
@@ -74,7 +74,7 @@ export const ResourceResolvers: Resolvers = {
 
             const tickets = myResource.tickets;
 
-            if (tickets.findIndex(({ user }) => user._id?.equals(context.user._id)) === -1) {
+            if (tickets.findIndex(({ user }) => user._id?.equals(context?.user?._id ?? "")) === -1) {
                 return null;
             }
 
@@ -147,20 +147,20 @@ export const ResourceResolvers: Resolvers = {
     },
     Mutation: {
         // Resource CRUD operations
-        createResource: async (parent, args, context) => {
+        createResource: async (parent, args, context: express.Request) => {
             const { name, description, maxActiveTickets, userList } = args.resource
             const timestamp = new Date();
 
-            const db = await (await MongoDBSingleton.getInstance()).db;
+            const db = await (await context.mongoDBConnection).db;
 
             // Check if user has entered himself as admin, it's important to do so
-            const myUserIndex = userList.findIndex(user => new ObjectId(user.id).equals(context.user._id));
+            const myUserIndex = userList.findIndex(user => new ObjectId(user.id).equals(new ObjectId(context?.user?._id ?? "")));
             if (myUserIndex === -1) {
-                userList.push({ id: new ObjectId(context.user._id).toHexString(), role: LocalRole.ResourceAdmin });
+                userList.push({ id: new ObjectId(new ObjectId(context?.user?._id ?? "")).toHexString(), role: LocalRole.ResourceAdmin });
             }
 
             // Force the role of my user to be admin when creating
-            userList[myUserIndex] = { id: new ObjectId(context.user._id).toHexString(), role: LocalRole.ResourceAdmin }
+            userList[myUserIndex] = { id: new ObjectId(new ObjectId(context?.user?._id ?? "")).toHexString(), role: LocalRole.ResourceAdmin }
 
 
             const userNameList = userList
@@ -196,7 +196,7 @@ export const ResourceResolvers: Resolvers = {
                     ],
                     user: { role, _id: new ObjectId(id), username: userNameMap?.[id] },
                 })),
-                createdBy: { _id: context.user._id, username: context.user.username },
+                createdBy: { _id: new ObjectId(context?.user?._id ?? ""), username: context.user.username },
                 activeUserCount: 0
             }
             const result = await db.collection<ResourceDbObject>(RESOURCES).insertOne(newResource);
@@ -207,13 +207,13 @@ export const ResourceResolvers: Resolvers = {
 
             return { status: OperationResult.Ok, newObjectId: result.insertedId.toHexString() };
         },
-        updateResource: async (parent, args, context) => {
+        updateResource: async (parent, args, context: express.Request) => {
             const { name, description, maxActiveTickets, userList: newUserList, id } = args.resource
             const timestamp = new Date();
 
-            const db = await (await MongoDBSingleton.getInstance()).db;
+            const db = await (await context.mongoDBConnection).db;
 
-            const client = await (await MongoDBSingleton.getInstance()).connection;
+            const client = await (await context.mongoDBConnection).connection;
 
             let result: UpdateResult = { status: OperationResult.Ok };
 
@@ -248,7 +248,7 @@ export const ResourceResolvers: Resolvers = {
                     }
                     const userNameMap = Object.fromEntries(userListResult.map(([id, { result: user }]) => [id, user?.username ?? ""]));
 
-                    const resource = await getResource(id ?? "")
+                    const resource = await getResource(id ?? "", db)
                     if (resource == null) {
                         return { status: OperationResult.Error }
                     }
@@ -280,7 +280,7 @@ export const ResourceResolvers: Resolvers = {
                         session
                     })
 
-                    await removeUsersInQueue(resource, categorizedUserData.delete, timestamp, 2, session);
+                    await removeUsersInQueue(resource, categorizedUserData.delete, timestamp, 2, db, session);
 
                     for (const { id: ticketUserId, role } of categorizedUserData.modify) {
                         await db.collection<ResourceDbObject>(RESOURCES).updateMany({
@@ -330,13 +330,13 @@ export const ResourceResolvers: Resolvers = {
 
             return { status: OperationResult.Ok };
         },
-        deleteResource: async (parent, args, context) => {
+        deleteResource: async (parent, args, context: express.Request) => {
             const { resourceId } = args
-            const db = await (await MongoDBSingleton.getInstance()).db;
+            const db = await (await context.mongoDBConnection).db;
 
-            const hasAdminAccess = await hasAdminAccessInResource(context.user._id.toHexString() ?? "", resourceId)
+            const hasAdminAccess = await hasAdminAccessInResource(new ObjectId(context?.user?._id ?? "").toHexString() ?? "", resourceId, db)
             if (!hasAdminAccess) {
-                console.log("Does not have admin access", hasAdminAccess, context.user._id, resourceId);
+                console.log("Does not have admin access", hasAdminAccess, new ObjectId(context?.user?._id ?? ""), resourceId);
                 return { status: OperationResult.Error }
             }
 
@@ -355,11 +355,12 @@ export const ResourceResolvers: Resolvers = {
         },
 
         // Resource management operations
-        requestResource: async (parent, args, context) => {
+        requestResource: async (parent, args, context: express.Request) => {
             const { requestFrom, resourceId } = args
             const timestamp = new Date();
 
-            const client = await (await MongoDBSingleton.getInstance()).connection;
+            const client = await (await context.mongoDBConnection).connection;
+            const db = await (await context.mongoDBConnection).db;
 
             let result: ResourceManagementResult = { status: OperationResult.Ok };
 
@@ -384,7 +385,7 @@ export const ResourceResolvers: Resolvers = {
                         previousStatusCode,
                         lastQueuePosition,
                         firstQueuePosition
-                    } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Requesting, session);
+                    } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Requesting, session, db);
 
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
@@ -395,15 +396,15 @@ export const ResourceResolvers: Resolvers = {
                     await pushNewStatus(resourceId, ticketId, {
                         statusCode: TicketStatusCode.Requesting,
                         timestamp
-                    }, 1, session, previousStatusCode);
+                    }, 1, session, db, previousStatusCode);
 
 
 
                     // Here comes the logic to enter the queue or set the status as active
                     if (activeUserCount < maxActiveTickets && (lastQueuePosition === 0)) {
-                        await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Active, timestamp }, 2, session, TicketStatusCode.Requesting);
+                        await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Active, timestamp }, 2, session, db, TicketStatusCode.Requesting);
                     } else {
-                        await enqueue(resourceId, ticketId, timestamp, 2, session);
+                        await enqueue(resourceId, ticketId, timestamp, 2, session, db);
                     }
 
 
@@ -418,19 +419,20 @@ export const ResourceResolvers: Resolvers = {
 
             // Once the session is ended, le't get and return our new data
 
-            const resource = await getResource(resourceId)
+            const resource = await getResource(resourceId, db)
             if (resource == null) {
                 return { status: OperationResult.Error }
             }
 
             // Status changed, now let's return the new resource
-            return generateOutputByResource[requestFrom](resource, context.user._id, resourceId);
+            return generateOutputByResource[requestFrom](resource, new ObjectId(context?.user?._id ?? ""), resourceId, db);
         },
-        acquireResource: async (parent, args, context) => {
+        acquireResource: async (parent, args, context: express.Request) => {
             const { resourceId } = args
             const timestamp = new Date();
 
-            const client = await (await MongoDBSingleton.getInstance()).connection;
+            const client = await (await context.mongoDBConnection).connection;
+            const db = await (await context.mongoDBConnection).db;
 
             let result: ResourceManagementResult = { status: OperationResult.Ok };
 
@@ -447,13 +449,13 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Active, session);
+                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Active, session, db);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
                     }
                     // Change status to active
-                    await removeAwaitingConfirmation(resourceId, firstQueuePosition, session)
+                    await removeAwaitingConfirmation(resourceId, firstQueuePosition, session, db)
                 }, transactionOptions);
             } finally {
                 await session.endSession();
@@ -465,15 +467,15 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session2.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Active, session2);
+                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Active, session2, db);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
                     }
                     // Change status to active
                     // Move people forward in the queue
-                    await forwardQueue(resourceId, timestamp, 2, session2);
-                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Active, timestamp }, 3, session2, previousStatusCode);
+                    await forwardQueue(resourceId, timestamp, 2, session2, db);
+                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Active, timestamp }, 3, session2, db, previousStatusCode);
 
 
                 }, transactionOptions);
@@ -486,19 +488,20 @@ export const ResourceResolvers: Resolvers = {
 
             // Once the session is ended, let's get and return our new data
 
-            const resource = await getResource(resourceId)
+            const resource = await getResource(resourceId, db)
             if (resource == null) {
                 return { status: OperationResult.Error }
             }
 
             // Status changed, now let's return the new resource
-            return generateOutputByResource["HOME"](resource, context.user._id, resourceId);
+            return generateOutputByResource["HOME"](resource, new ObjectId(context?.user?._id ?? ""), resourceId, db);
         },
-        cancelResourceAcquire: async (parent, args, context) => {
+        cancelResourceAcquire: async (parent, args, context: express.Request) => {
             const { resourceId } = args
             const timestamp = new Date();
 
-            const client = await (await MongoDBSingleton.getInstance()).connection;
+            const client = await (await context.mongoDBConnection).connection;
+            const db = await (await context.mongoDBConnection).db;
 
             let result: ResourceManagementResult = { status: OperationResult.Ok };
 
@@ -515,13 +518,13 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest, firstQueuePosition } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Inactive, session);
+                    const { canRequest, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Inactive, session, db);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
                     }
                     // Remove our awaiting confirmation
-                    await removeAwaitingConfirmation(resourceId, firstQueuePosition, session)
+                    await removeAwaitingConfirmation(resourceId, firstQueuePosition, session, db)
                 }, transactionOptions);
             } finally {
                 await session.endSession();
@@ -533,15 +536,15 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session2.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Queued, session2);
+                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Queued, session2, db);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
                     }
                     // Change status to active
                     // Move people forward in the queue
-                    await forwardQueue(resourceId, timestamp, 2, session2);
-                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Inactive, timestamp }, 3, session2, previousStatusCode);
+                    await forwardQueue(resourceId, timestamp, 2, session2, db);
+                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Inactive, timestamp }, 3, session2, db, previousStatusCode);
 
 
                 }, transactionOptions);
@@ -554,24 +557,25 @@ export const ResourceResolvers: Resolvers = {
 
             // Once the session is ended, let's get and return our new data
 
-            const resource = await getResource(resourceId)
+            const resource = await getResource(resourceId, db)
             if (resource == null) {
                 return { status: OperationResult.Error }
             }
 
             const firstQueuePosition = getFirstQueuePosition(resource?.tickets ?? []);
-            await notifyFirstInQueue(resourceId, timestamp, 3, firstQueuePosition);
+            await notifyFirstInQueue(resourceId, timestamp, 3, firstQueuePosition, db);
 
-            await pushNotification(resource?.name, resource?._id, resource?.createdBy?._id, resource?.createdBy?.username, timestamp);
+            await pushNotification(resource?.name, resource?._id, resource?.createdBy?._id, resource?.createdBy?.username, timestamp, db);
 
             // Status changed, now let's return the new resource
-            return generateOutputByResource["HOME"](resource, context.user._id, resourceId);
+            return generateOutputByResource["HOME"](resource, new ObjectId(context?.user?._id ?? ""), resourceId, db);
         },
-        releaseResource: async (parent, args, context) => {
+        releaseResource: async (parent, args, context: express.Request) => {
             const { requestFrom, resourceId } = args
             const timestamp = new Date();
 
-            const client = await (await MongoDBSingleton.getInstance()).connection;
+            const client = await (await context.mongoDBConnection).connection;
+            const db = await (await context.mongoDBConnection).db;
 
             let result: ResourceManagementResult = { status: OperationResult.Ok };
 
@@ -588,17 +592,17 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(context.user._id, resourceId, TicketStatusCode.Inactive, session);
+                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Inactive, session, db);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
                     }
                     // Change status to inactive
-                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Inactive, timestamp }, 1, session, previousStatusCode);
+                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Inactive, timestamp }, 1, session, db, previousStatusCode);
 
 
                     // Notify our next in queue user
-                    await notifyFirstInQueue(resourceId, timestamp, 2, firstQueuePosition, session);
+                    await notifyFirstInQueue(resourceId, timestamp, 2, firstQueuePosition, db, session);
                 }, transactionOptions);
             } finally {
                 await session.endSession();
@@ -613,16 +617,16 @@ export const ResourceResolvers: Resolvers = {
 
             // Once the session is ended, let's get and return our new data
 
-            const resource = await getResource(resourceId)
+            const resource = await getResource(resourceId, db)
             if (resource == null) {
                 return { status: OperationResult.Error }
             }
 
-            await pushNotification(resource?.name, resource?._id, resource?.createdBy?._id, resource?.createdBy?.username, timestamp);
+            await pushNotification(resource?.name, resource?._id, resource?.createdBy?._id, resource?.createdBy?.username, timestamp, db);
 
 
             // Status changed, now let's return the new resource
-            return generateOutputByResource[requestFrom](resource, context.user._id, resourceId);
+            return generateOutputByResource[requestFrom](resource, new ObjectId(context?.user?._id ?? ""), resourceId, db);
         }
     }
 }

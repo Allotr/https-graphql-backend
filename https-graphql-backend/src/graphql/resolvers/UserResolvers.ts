@@ -1,17 +1,17 @@
 
-import { LocalRole, OperationResult, RequestSource, Resolvers, ResourceDbObject, ResourceNotificationDbObject, TicketStatusCode, UserDbObject, UserDeletionResult } from "allotr-graphql-schema-types";
-import { MongoDBSingleton } from "../../utils/mongodb-singleton";
+import { LocalRole, OperationResult, RequestSource, Resolvers, ResourceDbObject, ResourceNotificationDbObject, TicketStatusCode, User, UserDbObject, UserDeletionResult } from "allotr-graphql-schema-types";
 import { ObjectId, ReadConcern, ReadPreference, TransactionOptions, WriteConcern } from "mongodb"
 import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
 import { ResourceResolvers } from "./ResourceResolvers";
 import { removeUsersInQueue } from "../../utils/resolver-utils";
+import express from "express";
 
 
 export const UserResolvers: Resolvers = {
   Query: {
-    currentUser: (parent, args, context) => context.user,
-    searchUsers: async (parent, args, context) => {
-      const db = await (await MongoDBSingleton.getInstance()).db;
+    currentUser: (parent, args, context: express.Request) => context.user as User,
+    searchUsers: async (parent, args, context: express.Request) => {
+      const db = await (await context.mongoDBConnection).db;
 
       const usersFound = await db.collection<UserDbObject>(USERS).find(
         {
@@ -35,15 +35,15 @@ export const UserResolvers: Resolvers = {
     }
   },
   Mutation: {
-    deleteUser: async (parent, args, context) => {
+    deleteUser: async (parent, args, context: express.Request) => {
       const { deleteAllFlag, userId } = args;
-      if (!new ObjectId(userId).equals(context?.user?._id)) {
+      if (!new ObjectId(userId).equals(context?.user?._id ?? "")) {
         return { status: OperationResult.Error }
       }
 
-      const db = await (await MongoDBSingleton.getInstance()).db;
+      const db = await (await context.mongoDBConnection).db;
 
-      const client = await (await MongoDBSingleton.getInstance()).connection;
+      const client = await (await context.mongoDBConnection).connection;
 
       let result: UserDeletionResult = { status: OperationResult.Ok };
 
@@ -81,7 +81,7 @@ export const UserResolvers: Resolvers = {
 
       for (const resource of queuedResourceList) {
         try {
-          await removeUsersInQueue(resource, [{ id: userId, role: LocalRole.ResourceUser }], timestamp, 2);
+          await removeUsersInQueue(resource, [{ id: userId, role: LocalRole.ResourceUser }], timestamp, 2, db);
         } catch (e) {
           console.log("Some resource could not be released. Perhaps it was not queued");
         }
