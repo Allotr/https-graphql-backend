@@ -1,13 +1,13 @@
 
 import { Resolvers, TicketStatusCode, ResourceNotification, ResourceNotificationDbObject } from "allotr-graphql-schema-types";
-import { MongoDBSingleton } from "../../utils/mongodb-singleton";
 import { NOTIFICATIONS } from "../../consts/collections";
+import express from "express";
 
 
 export const NotificationResolvers: Resolvers = {
     Query: {
-        myNotificationData: async (parent, args, context) => {
-            const db = await (await MongoDBSingleton.getInstance()).db;
+        myNotificationData: async (parent, args, context: express.Request) => {
+            const db = await (await context.mongoDBConnection).db;
 
             const userNotifications = await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).find({
                 "user._id": context.user._id

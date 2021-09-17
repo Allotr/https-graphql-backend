@@ -1,12 +1,11 @@
 
 import express from "express";
 
-import { EnvLoader } from "../utils/env-loader";
+import { getLoadedEnvVariables } from "../utils/env-loader";
 
 import { isLoggedIn } from "../auth/google-passport";
 import * as webPush from "web-push"
 import { UserDbObject, WebPushSubscription } from "allotr-graphql-schema-types";
-import { MongoDBSingleton } from "../utils/mongodb-singleton";
 import { USERS } from "../consts/collections";
 
 
@@ -14,7 +13,7 @@ function initializeWebPush(app: express.Express) {
 
     // Web Push
     // API
-    const { VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, REDIRECT_URL } = EnvLoader.getInstance().loadedVariables;
+    const { VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, REDIRECT_URL } = getLoadedEnvVariables();
 
     webPush.setVapidDetails(
         REDIRECT_URL,
@@ -35,7 +34,7 @@ function initializeWebPush(app: express.Express) {
         const subscription = req?.body?.subscription as WebPushSubscription;
         const { _id } = req.user as UserDbObject;
 
-        const db = await (await MongoDBSingleton.getInstance()).db;
+        const db = await (await req.mongoDBConnection).db;
 
         await db.collection(USERS).updateOne({
             _id, "webPushSubscriptions.endpoint": { $ne: subscription.endpoint }
@@ -54,7 +53,7 @@ function initializeWebPush(app: express.Express) {
     app.post('/webpush/unregister', isLoggedIn, async (req, res) => {
         const subscription = req?.body?.subscription as WebPushSubscription;
         const { _id } = req.user as UserDbObject;
-        const db = await (await MongoDBSingleton.getInstance()).db;
+        const db = await (await req.mongoDBConnection).db;
 
         await db.collection(USERS).updateOne({
             _id
