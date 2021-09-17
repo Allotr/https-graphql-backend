@@ -4,7 +4,7 @@ import { MongoDBSingleton } from "../../utils/mongodb-singleton";
 import { ObjectId, ReadConcern, ReadPreference, TransactionOptions, WriteConcern } from "mongodb"
 import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
 import { ResourceResolvers } from "./ResourceResolvers";
-import { removeUsersInQueue } from "utils/resolver-utils";
+import { removeUsersInQueue } from "../../utils/resolver-utils";
 
 
 export const UserResolvers: Resolvers = {
