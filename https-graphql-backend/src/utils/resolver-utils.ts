@@ -392,12 +392,32 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
         return;
     }
 
-    fullReceivingUser?.webPushSubscriptions?.forEach(subscription => {
+    for (const subscription of fullReceivingUser?.webPushSubscriptions ?? []) {
         if (subscription == null) {
             return;
         }
-        sendNotification({ endpoint: subscription.endpoint ?? "", keys: { auth: subscription.keys?.auth ?? "", p256dh: subscription.keys?.p256dh ?? "" } })
-    })
+        try {
+            await sendNotification({
+                endpoint: subscription.endpoint ?? "",
+                keys: {
+                    auth: subscription.keys?.auth ?? "",
+                    p256dh: subscription.keys?.p256dh ?? ""
+                }
+            })
+        } catch (e) {
+            console.log("ERROR PUSHING", e)
+            // Let's delete the bad subscription
+            await db.collection(USERS).updateOne({
+                _id: user._id
+            }, {
+                $pull: {
+                    "webPushSubscriptions": subscription
+                }
+            }, {
+                arrayFilters: [],
+            })
+        }
+    }
 
     getRedisConnection().pubsub.publish(generateChannelId(RESOURCE_READY_TO_PICK, user?._id), {
         myNotificationDataSub: [
