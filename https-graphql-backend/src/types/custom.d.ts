@@ -5,7 +5,7 @@ import { RedisSingleton } from "../utils/redis-connector";
 
 declare module "express-serve-static-core" {
     interface Request {
-        mongoDBConnection: { connection: Promise<MongoClient>, db: Promise<Db> };
+        mongoDBConnection: Promise<{ connection: Promise<MongoClient>, db: Promise<Db> }>;
         redisConnection: { pubsub: RedisPubSub };
         user: UserDbObject;
     }
