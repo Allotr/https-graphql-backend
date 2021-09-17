@@ -7,7 +7,7 @@ import { getLoadedEnvVariables } from "./src/utils/env-loader";
 import { graphqlHTTP } from 'express-graphql';
 import { initializeGooglePassport, isLoggedIn } from "./src/auth/google-passport";
 import { initializeWebPush } from "./src/notifications/web-push";
-import { connectionMiddleware } from "utils/connection-utils";
+import { connectionMiddleware } from "./src/utils/connection-utils";
 
 async function handle(event: any, context: any, cb: any) {
   // When using graphqlHTTP this is not being executed
