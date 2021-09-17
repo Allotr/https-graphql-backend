@@ -6,7 +6,7 @@ let getMongoDBConnection = async (): Promise<{ connection: Promise<MongoClient>,
     var instance: { connection: Promise<MongoClient>, db: Promise<Db>, internalConnection: Promise<MongoClient | null> };
 
     getMongoDBConnection = async () => {
-        if ((await instance.internalConnection.catch(err => null)) != null) {
+        if ((await instance.internalConnection.catch(err => null)) == null) {
             await checkConnectionAndReconnect();
         }
 
