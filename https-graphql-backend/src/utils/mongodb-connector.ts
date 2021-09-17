@@ -2,8 +2,12 @@ import { Db, MongoClient } from "mongodb";
 import { getLoadedEnvVariables } from "./env-loader";
 
 
-function getMongoDBConnection(): { connection: Promise<MongoClient>, db: Promise<Db> } {
-    let instance: { connection: Promise<MongoClient>, db: Promise<Db> } | undefined;
+let getMongoDBConnection = (): { connection: Promise<MongoClient>, db: Promise<Db> } => {
+    var instance: { connection: Promise<MongoClient>, db: Promise<Db> };
+
+    getMongoDBConnection = () => {
+        return instance;
+    }
 
     function createConnection() {
         if (instance) {
