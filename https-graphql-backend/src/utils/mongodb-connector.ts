@@ -19,7 +19,6 @@ let getMongoDBConnection = (): { connection: Promise<MongoClient>, db: Promise<D
         const connection = client.connect().catch(reason => { console.log("error in init connect", reason) }) as Promise<MongoClient>;
         const db = connection?.then(connection => connection?.db(DB_NAME), error => {
             console.log("error in connection", error);
-            this.internalConnection = Promise.resolve(null);
             client.close()
         }) as Promise<Db>
         instance = { connection, db }
