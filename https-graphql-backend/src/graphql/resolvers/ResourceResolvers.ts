@@ -5,7 +5,7 @@ import { ObjectId, ReadPreference, WriteConcern, ReadConcern, TransactionOptions
 import { categorizeArrayData, customTryCatch, getFirstQueuePosition, getLastStatus } from "../../utils/data-util";
 import { CustomTryCatch } from "../../types/custom-try-catch";
 import { canRequestStatusChange, hasAdminAccessInResource } from "../../guards/guards";
-import { enqueue, forwardQueue, generateOutputByResource, getResource, pushNotification, notifyFirstInQueue, pushNewStatus, removeAwaitingConfirmation } from "../../utils/resolver-utils";
+import { enqueue, forwardQueue, generateOutputByResource, getResource, pushNotification, notifyFirstInQueue, pushNewStatus, removeAwaitingConfirmation, removeUsersInQueue } from "../../utils/resolver-utils";
 import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
 
 
@@ -280,25 +280,7 @@ export const ResourceResolvers: Resolvers = {
                         session
                     })
 
-                    // Delete notifications
-                    await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).deleteMany({
-                        "resource._id": new ObjectId(id ?? ""),
-                        "user._id": {
-                            $in: [...categorizedUserData.delete?.map(({ id }) => !!id ? new ObjectId(id) : null).filter(Boolean)]
-                        }
-                    })
-
-                    await db.collection<ResourceDbObject>(RESOURCES).updateMany({
-                        _id: new ObjectId(id ?? ""),
-                    }, {
-                        $pull: {
-                            tickets: {
-                                "user._id": { $in: [...categorizedUserData.delete?.map(({ id }) => !!id ? new ObjectId(id) : null).filter(Boolean)] }
-                            }
-                        } as any
-                    }, {
-                        session
-                    })
+                    await removeUsersInQueue(resource, categorizedUserData.delete, timestamp, 2, session);
 
                     for (const { id: ticketUserId, role } of categorizedUserData.modify) {
                         await db.collection<ResourceDbObject>(RESOURCES).updateMany({
