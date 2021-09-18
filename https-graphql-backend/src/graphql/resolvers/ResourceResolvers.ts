@@ -4,9 +4,10 @@ import { ObjectId, ReadPreference, WriteConcern, ReadConcern, TransactionOptions
 import { categorizeArrayData, customTryCatch, getFirstQueuePosition, getLastStatus } from "../../utils/data-util";
 import { CustomTryCatch } from "../../types/custom-try-catch";
 import { canRequestStatusChange, hasAdminAccessInResource } from "../../guards/guards";
-import { enqueue, forwardQueue, generateOutputByResource, getResource, pushNotification, notifyFirstInQueue, pushNewStatus, removeAwaitingConfirmation, removeUsersInQueue } from "../../utils/resolver-utils";
+import { enqueue, forwardQueue, generateOutputByResource, getResource, pushNotification, notifyFirstInQueue, pushNewStatus, removeAwaitingConfirmation, removeUsersInQueue, clearOutAwaitingConfirmation } from "../../utils/resolver-utils";
 import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
 import express from "express";
+import { CategorizedArrayData } from "../../types/categorized-array-data";
 
 
 export const ResourceResolvers: Resolvers = {
@@ -217,19 +218,23 @@ export const ResourceResolvers: Resolvers = {
 
             let result: UpdateResult = { status: OperationResult.Ok };
 
+            // First let's clear out all awaiting confirmation
 
-            // Step 1: Start a Client Session
-            const session = client.startSession();
+            // // Step 1: Start a Client Session
+            const session_init = client.startSession();
+
             // Step 2: Optional. Define options to use for the transaction
             const transactionOptions: TransactionOptions = {
                 readPreference: new ReadPreference(ReadPreference.PRIMARY),
                 readConcern: new ReadConcern("local"),
                 writeConcern: new WriteConcern("majority")
             };
-            // Step 3: Use withTransaction to start a transaction, execute the callback, and commit (or abort on error)
-            // Note: The callback for withTransaction MUST be async and/or return a Promise.
+
+            let categorizedUserData: CategorizedArrayData<ResourceUser> = { add: [], delete: [], modify: [] };
+            let userNameMap: Record<string, string> = {};
+
             try {
-                await session.withTransaction(async () => {
+                await session_init.withTransaction(async () => {
                     const userNameList = newUserList
                         .map<Promise<[string, CustomTryCatch<UserDbObject | null | undefined>]>>(async ({ id }) =>
                             [
@@ -246,7 +251,7 @@ export const ResourceResolvers: Resolvers = {
                             newObjectId: null
                         }
                     }
-                    const userNameMap = Object.fromEntries(userListResult.map(([id, { result: user }]) => [id, user?.username ?? ""]));
+                    userNameMap = Object.fromEntries(userListResult.map(([id, { result: user }]) => [id, user?.username ?? ""]));
 
                     const resource = await getResource(id ?? "", db)
                     if (resource == null) {
@@ -255,7 +260,26 @@ export const ResourceResolvers: Resolvers = {
 
                     const oldUserList = resource?.tickets?.map<ResourceUser>(({ user }) => ({ id: user._id?.toHexString() ?? "", role: user.role as LocalRole }))
 
-                    const categorizedUserData = categorizeArrayData(oldUserList, newUserList);
+                    categorizedUserData = categorizeArrayData(oldUserList, newUserList);
+
+                    await clearOutAwaitingConfirmation(resource, categorizedUserData.delete, context)
+                }, transactionOptions);
+            } finally {
+                await session_init.endSession();
+            }
+
+            // Step 1: Start a Client Session
+            const session = client.startSession();
+            // Step 3: Use withTransaction to start a transaction, execute the callback, and commit (or abort on error)
+            // Note: The callback for withTransaction MUST be async and/or return a Promise.
+            try {
+                await session.withTransaction(async () => {
+                    const resource = await getResource(id ?? "", db)
+                    if (resource == null) {
+                        return { status: OperationResult.Error }
+                    }
+
+
 
                     // Update
                     await db.collection<ResourceDbObject>(RESOURCES).updateMany({
@@ -280,7 +304,7 @@ export const ResourceResolvers: Resolvers = {
                         session
                     })
 
-                    await removeUsersInQueue(resource, categorizedUserData.delete, timestamp, 2, db, session);
+                    await removeUsersInQueue(resource, categorizedUserData.delete, timestamp, 2, db, context, session);
 
                     for (const { id: ticketUserId, role } of categorizedUserData.modify) {
                         await db.collection<ResourceDbObject>(RESOURCES).updateMany({

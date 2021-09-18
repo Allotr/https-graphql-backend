@@ -3,7 +3,7 @@ import { LocalRole, OperationResult, RequestSource, Resolvers, ResourceDbObject,
 import { ObjectId, ReadConcern, ReadPreference, TransactionOptions, WriteConcern } from "mongodb"
 import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
 import { ResourceResolvers } from "./ResourceResolvers";
-import { removeUsersInQueue } from "../../utils/resolver-utils";
+import { clearOutAwaitingConfirmation, removeUsersInQueue } from "../../utils/resolver-utils";
 import express from "express";
 
 
@@ -72,6 +72,29 @@ export const UserResolvers: Resolvers = {
         }
       }
 
+      const awaitingConfirmationResources = await db.collection<ResourceDbObject>(RESOURCES).find({
+        "tickets.user._id": context.user._id,
+        "tickets.statuses.statusCode": TicketStatusCode.AwaitingConfirmation
+      }, {
+        projection: {
+          "tickets.$": 1,
+          name: 1,
+          createdBy: 1,
+          description: 1,
+          maxActiveTickets: 1,
+          lastModificationDate: 1,
+          _id: 1,
+          creationDate: 1,
+          activeUserCount: 1
+        }
+      }).sort({
+        creationDate: 1
+      }).toArray();
+
+      for (const resource of awaitingConfirmationResources) {
+        await clearOutAwaitingConfirmation(resource, [{ id: userId, role: LocalRole.ResourceUser }], context)
+      }
+
       const queuedResourceList = await db.collection<ResourceDbObject>(RESOURCES).find({
         "tickets.user._id": context.user._id,
         "tickets.statuses.statusCode": TicketStatusCode.Queued
@@ -81,7 +104,7 @@ export const UserResolvers: Resolvers = {
 
       for (const resource of queuedResourceList) {
         try {
-          await removeUsersInQueue(resource, [{ id: userId, role: LocalRole.ResourceUser }], timestamp, 2, db);
+          await removeUsersInQueue(resource, [{ id: userId, role: LocalRole.ResourceUser }], timestamp, 2, db, context);
         } catch (e) {
           console.log("Some resource could not be released. Perhaps it was not queued");
         }

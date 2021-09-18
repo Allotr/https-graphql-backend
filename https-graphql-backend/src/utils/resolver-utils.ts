@@ -6,6 +6,7 @@ import { sendNotification } from "../notifications/web-push";
 import { RESOURCE_READY_TO_PICK } from "../consts/connection-tokens";
 import { VALID_STATUES_MAP } from "src/consts/valid-statuses-map";
 import { getRedisConnection } from "./redis-connector";
+import { ResourceResolvers } from "../graphql/resolvers/ResourceResolvers";
 async function getUserTicket(userId: string | ObjectId, resourceId: string, db: Db): Promise<ResourceDbObject | null> {
     const [parsedUserId, parsedResourceId] = [new ObjectId(userId), new ObjectId(resourceId)];
 
@@ -200,8 +201,21 @@ async function forwardQueue(
     })
 }
 
+async function clearOutAwaitingConfirmation(resource: ResourceDbObject, userList: ResourceUser[], context: Express.Request) {
+    // First lest clear out the awaiting confirmation ones
+    const cancelResourceAcquire = (ResourceResolvers as any)?.Mutation?.cancelResourceAcquire;
+    for (const user of userList) {
+        try {
+            await cancelResourceAcquire?.(undefined, { resourceId: new ObjectId(resource?._id ?? "").toHexString() ?? "" }, { ...context, user })
+        } catch (e) {
+            console.log("Some resource could not be let go. Perhaps it was not in awaiting confirmation status");
+        }
+    }
+
+}
+
 async function removeUsersInQueue(resource: ResourceDbObject, userList: ResourceUser[], currentDate: Date,
-    executionPosition: number, db: Db, session?: ClientSession) {
+    executionPosition: number, db: Db, context: Express.Request, session?: ClientSession) {
 
     const timestamp = addMSToTime(currentDate, executionPosition)
     const deletionUsersQueuePosition = userList
@@ -440,4 +454,4 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
 
 }
 
-export { getUserTicket, getResource, pushNewStatus, enqueue, forwardQueue, notifyFirstInQueue, generateOutputByResource, pushNotification, getAwaitingTicket, removeAwaitingConfirmation, removeUsersInQueue }
+export { getUserTicket, getResource, pushNewStatus, enqueue, forwardQueue, notifyFirstInQueue, generateOutputByResource, clearOutAwaitingConfirmation, pushNotification, getAwaitingTicket, removeAwaitingConfirmation, removeUsersInQueue }
