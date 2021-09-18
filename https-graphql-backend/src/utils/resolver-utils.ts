@@ -202,24 +202,40 @@ async function forwardQueue(
     })
 }
 
-async function clearOutAwaitingConfirmation(resource: ResourceDbObject, userList: ResourceUser[], context: express.Request) {
-    // First lest clear out the awaiting confirmation ones
-    const cancelResourceAcquire = (ResourceResolvers as any)?.Mutation?.cancelResourceAcquire;
+async function clearOutQueueDependantTickets(
+    resource: ResourceDbObject,
+    userList: ResourceUser[],
+    context: express.Request,
+    status: typeof TicketStatusCode.Active | typeof TicketStatusCode.AwaitingConfirmation
+) {
+
+    const functionMap: Record<typeof status, Function> = {
+        ACTIVE: (ResourceResolvers as any)?.Mutation?.releaseResource as Function,
+        AWAITING_CONFIRMATION: (ResourceResolvers as any)?.Mutation?.cancelResourceAcquire
+    }
+
+    const argMap: Record<typeof status, Function> = {
+        ACTIVE: (resourceId: ObjectId, requestFrom: RequestSource) => ({ resourceId, requestFrom }),
+        AWAITING_CONFIRMATION: (resourceId: ObjectId) => ({ resourceId })
+    }
+
     const filteredUserList = userList.filter(({ id }) => {
         const myTicket = resource.tickets.find(({ user }) => new ObjectId(user._id ?? "").equals(id));
         if (myTicket == null) {
             return false;
         }
-        return getLastStatus(myTicket).statusCode === TicketStatusCode.AwaitingConfirmation;
+        return getLastStatus(myTicket).statusCode === status;
     });
     for (const user of filteredUserList) {
         try {
-            await cancelResourceAcquire?.(undefined, { resourceId: new ObjectId(resource?._id ?? "").toHexString() ?? "" }, {
+            const args = argMap[status](new ObjectId(resource?._id ?? "").toHexString() ?? "", RequestSource.Resource)
+            const functionContext = {
                 ...context,
                 user: await getUser(new ObjectId(user.id), await (await context.mongoDBConnection).db)
-            })
+            }
+            await functionMap[status]?.(undefined, args, functionContext);
         } catch (e) {
-            console.log("Some resource could not be let go. Perhaps it was not in awaiting confirmation status", e);
+            console.log("Some resource could not be let go. Perhaps it was not in the correct status", e);
         }
     }
 
@@ -465,4 +481,4 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
 
 }
 
-export { getUserTicket, getResource, pushNewStatus, enqueue, forwardQueue, notifyFirstInQueue, generateOutputByResource, clearOutAwaitingConfirmation, pushNotification, getAwaitingTicket, removeAwaitingConfirmation, removeUsersInQueue }
+export { getUserTicket, getResource, pushNewStatus, enqueue, forwardQueue, notifyFirstInQueue, generateOutputByResource, clearOutQueueDependantTickets, pushNotification, getAwaitingTicket, removeAwaitingConfirmation, removeUsersInQueue }

@@ -4,7 +4,7 @@ import { ObjectId, ReadPreference, WriteConcern, ReadConcern, TransactionOptions
 import { categorizeArrayData, customTryCatch, getFirstQueuePosition, getLastStatus } from "../../utils/data-util";
 import { CustomTryCatch } from "../../types/custom-try-catch";
 import { canRequestStatusChange, hasAdminAccessInResource } from "../../guards/guards";
-import { enqueue, forwardQueue, generateOutputByResource, getResource, pushNotification, notifyFirstInQueue, pushNewStatus, removeAwaitingConfirmation, removeUsersInQueue, clearOutAwaitingConfirmation } from "../../utils/resolver-utils";
+import { enqueue, forwardQueue, generateOutputByResource, getResource, pushNotification, notifyFirstInQueue, pushNewStatus, removeAwaitingConfirmation, removeUsersInQueue, clearOutQueueDependantTickets } from "../../utils/resolver-utils";
 import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
 import express from "express";
 import { CategorizedArrayData } from "../../types/categorized-array-data";
@@ -262,7 +262,8 @@ export const ResourceResolvers: Resolvers = {
 
                     categorizedUserData = categorizeArrayData(oldUserList, newUserList);
 
-                    await clearOutAwaitingConfirmation(resource, categorizedUserData.delete, context)
+                    await clearOutQueueDependantTickets(resource, categorizedUserData.delete, context, TicketStatusCode.Active);
+                    await clearOutQueueDependantTickets(resource, categorizedUserData.delete, context, TicketStatusCode.AwaitingConfirmation);
                 }, transactionOptions);
             } finally {
                 await session_init.endSession();

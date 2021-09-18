@@ -3,7 +3,7 @@ import { LocalRole, OperationResult, RequestSource, Resolvers, ResourceDbObject,
 import { ObjectId, ReadConcern, ReadPreference, TransactionOptions, WriteConcern } from "mongodb"
 import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
 import { ResourceResolvers } from "./ResourceResolvers";
-import { clearOutAwaitingConfirmation, removeUsersInQueue } from "../../utils/resolver-utils";
+import { clearOutQueueDependantTickets, removeUsersInQueue } from "../../utils/resolver-utils";
 import express from "express";
 
 
@@ -49,54 +49,21 @@ export const UserResolvers: Resolvers = {
 
       const timestamp = new Date();
 
-      // We must liberate all resources aquired before deleting the tickets
-      // This way we make sure that the queue progresses
+      // We must liberate all resources that lock the queue for other users
       // This code is not inside this operation session because it has its own session
-      const activeResourceList = await db.collection<ResourceDbObject>(RESOURCES).find({
-        "tickets.user._id": context.user._id,
-        "tickets.statuses.statusCode": TicketStatusCode.Active
-      }, {
-        projection: {
-          _id: 1
-        }
+      const userResourceList = await db.collection<ResourceDbObject>(RESOURCES).find({
+        "tickets.user._id": context.user._id
       }).sort({
         creationDate: 1
       }).toArray();
 
-      for (const resource of activeResourceList) {
-        const releaseResourceFunction = (ResourceResolvers as any)?.Mutation?.releaseResource;
+      for (const resource of userResourceList) {
         try {
-          await releaseResourceFunction?.(undefined, { requestFrom: RequestSource.Resource, resourceId: new ObjectId(resource?._id ?? "").toHexString() ?? "" }, context)
-        } catch (e) {
-          console.log("Some resource could not be released. Perhaps it was not active");
-        }
-      }
-
-      const awaitingConfirmationResources = await db.collection<ResourceDbObject>(RESOURCES).find({
-        $and: [
-          { "tickets.user._id": context.user._id },
-          { "tickets.statuses.statusCode": TicketStatusCode.AwaitingConfirmation }
-        ]
-      }).sort({
-        creationDate: 1
-      }).toArray();
-
-      for (const resource of awaitingConfirmationResources) {
-        await clearOutAwaitingConfirmation(resource, [{ id: userId, role: LocalRole.ResourceUser }], context)
-      }
-
-      const queuedResourceList = await db.collection<ResourceDbObject>(RESOURCES).find({
-        "tickets.user._id": context.user._id,
-        "tickets.statuses.statusCode": TicketStatusCode.Queued
-      }).sort({
-        creationDate: 1
-      }).toArray();
-
-      for (const resource of queuedResourceList) {
-        try {
+          await clearOutQueueDependantTickets(resource, [{ id: userId, role: LocalRole.ResourceUser }], context, TicketStatusCode.AwaitingConfirmation);
+          await clearOutQueueDependantTickets(resource, [{ id: userId, role: LocalRole.ResourceUser }], context, TicketStatusCode.Active);
           await removeUsersInQueue(resource, [{ id: userId, role: LocalRole.ResourceUser }], timestamp, 2, db, context);
         } catch (e) {
-          console.log("Some resource could not be released. Perhaps it was not queued");
+          console.log("Some queue dependant resource could not be cleared out");
         }
       }
 
