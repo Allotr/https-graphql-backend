@@ -7,6 +7,7 @@ import { RESOURCE_READY_TO_PICK } from "../consts/connection-tokens";
 import { VALID_STATUES_MAP } from "src/consts/valid-statuses-map";
 import { getRedisConnection } from "./redis-connector";
 import { ResourceResolvers } from "../graphql/resolvers/ResourceResolvers";
+import express from "express";
 async function getUserTicket(userId: string | ObjectId, resourceId: string, db: Db): Promise<ResourceDbObject | null> {
     const [parsedUserId, parsedResourceId] = [new ObjectId(userId), new ObjectId(resourceId)];
 
@@ -201,7 +202,7 @@ async function forwardQueue(
     })
 }
 
-async function clearOutAwaitingConfirmation(resource: ResourceDbObject, userList: ResourceUser[], context: Express.Request) {
+async function clearOutAwaitingConfirmation(resource: ResourceDbObject, userList: ResourceUser[], context: express.Request) {
     // First lest clear out the awaiting confirmation ones
     const cancelResourceAcquire = (ResourceResolvers as any)?.Mutation?.cancelResourceAcquire;
     const filteredUserList = userList.filter(({ id }) => {
@@ -213,9 +214,12 @@ async function clearOutAwaitingConfirmation(resource: ResourceDbObject, userList
     });
     for (const user of filteredUserList) {
         try {
-            await cancelResourceAcquire?.(undefined, { resourceId: new ObjectId(resource?._id ?? "").toHexString() ?? "" }, { ...context, user })
+            await cancelResourceAcquire?.(undefined, { resourceId: new ObjectId(resource?._id ?? "").toHexString() ?? "" }, {
+                ...context,
+                user: await getUser(new ObjectId(user.id), await (await context.mongoDBConnection).db)
+            })
         } catch (e) {
-            console.log("Some resource could not be let go. Perhaps it was not in awaiting confirmation status");
+            console.log("Some resource could not be let go. Perhaps it was not in awaiting confirmation status", e);
         }
     }
 
