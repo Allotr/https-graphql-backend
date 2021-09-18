@@ -6,6 +6,8 @@ import { sendNotification } from "../notifications/web-push";
 import { RESOURCE_READY_TO_PICK } from "../consts/connection-tokens";
 import { VALID_STATUES_MAP } from "src/consts/valid-statuses-map";
 import { getRedisConnection } from "./redis-connector";
+import { ResourceResolvers } from "../graphql/resolvers/ResourceResolvers";
+import express from "express";
 async function getUserTicket(userId: string | ObjectId, resourceId: string, db: Db): Promise<ResourceDbObject | null> {
     const [parsedUserId, parsedResourceId] = [new ObjectId(userId), new ObjectId(resourceId)];
 
@@ -200,8 +202,47 @@ async function forwardQueue(
     })
 }
 
+async function clearOutQueueDependantTickets(
+    resource: ResourceDbObject,
+    userList: ResourceUser[],
+    context: express.Request,
+    status: typeof TicketStatusCode.Active | typeof TicketStatusCode.AwaitingConfirmation
+) {
+
+    const functionMap: Record<typeof status, Function> = {
+        ACTIVE: (ResourceResolvers as any)?.Mutation?.releaseResource as Function,
+        AWAITING_CONFIRMATION: (ResourceResolvers as any)?.Mutation?.cancelResourceAcquire
+    }
+
+    const argMap: Record<typeof status, Function> = {
+        ACTIVE: (resourceId: ObjectId, requestFrom: RequestSource) => ({ resourceId, requestFrom }),
+        AWAITING_CONFIRMATION: (resourceId: ObjectId) => ({ resourceId })
+    }
+
+    const filteredUserList = userList.filter(({ id }) => {
+        const myTicket = resource.tickets.find(({ user }) => new ObjectId(user._id ?? "").equals(id));
+        if (myTicket == null) {
+            return false;
+        }
+        return getLastStatus(myTicket).statusCode === status;
+    });
+    for (const user of filteredUserList) {
+        try {
+            const args = argMap[status](new ObjectId(resource?._id ?? "").toHexString() ?? "", RequestSource.Resource)
+            const functionContext = {
+                ...context,
+                user: await getUser(new ObjectId(user.id), await (await context.mongoDBConnection).db)
+            }
+            await functionMap[status]?.(undefined, args, functionContext);
+        } catch (e) {
+            console.log("Some resource could not be let go. Perhaps it was not in the correct status", e);
+        }
+    }
+
+}
+
 async function removeUsersInQueue(resource: ResourceDbObject, userList: ResourceUser[], currentDate: Date,
-    executionPosition: number, db: Db, session?: ClientSession) {
+    executionPosition: number, db: Db, context: Express.Request, session?: ClientSession) {
 
     const timestamp = addMSToTime(currentDate, executionPosition)
     const deletionUsersQueuePosition = userList
@@ -392,12 +433,32 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
         return;
     }
 
-    fullReceivingUser?.webPushSubscriptions?.forEach(subscription => {
+    for (const subscription of fullReceivingUser?.webPushSubscriptions ?? []) {
         if (subscription == null) {
             return;
         }
-        sendNotification({ endpoint: subscription.endpoint ?? "", keys: { auth: subscription.keys?.auth ?? "", p256dh: subscription.keys?.p256dh ?? "" } })
-    })
+        try {
+            await sendNotification({
+                endpoint: subscription.endpoint ?? "",
+                keys: {
+                    auth: subscription.keys?.auth ?? "",
+                    p256dh: subscription.keys?.p256dh ?? ""
+                }
+            })
+        } catch (e) {
+            console.log("ERROR PUSHING", e)
+            // Let's delete the bad subscription
+            await db.collection(USERS).updateOne({
+                _id: user._id
+            }, {
+                $pull: {
+                    "webPushSubscriptions": subscription
+                }
+            }, {
+                arrayFilters: [],
+            })
+        }
+    }
 
     getRedisConnection().pubsub.publish(generateChannelId(RESOURCE_READY_TO_PICK, user?._id), {
         myNotificationDataSub: [
@@ -420,4 +481,4 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
 
 }
 
-export { getUserTicket, getResource, pushNewStatus, enqueue, forwardQueue, notifyFirstInQueue, generateOutputByResource, pushNotification, getAwaitingTicket, removeAwaitingConfirmation, removeUsersInQueue }
+export { getUserTicket, getResource, pushNewStatus, enqueue, forwardQueue, notifyFirstInQueue, generateOutputByResource, clearOutQueueDependantTickets, pushNotification, getAwaitingTicket, removeAwaitingConfirmation, removeUsersInQueue }
