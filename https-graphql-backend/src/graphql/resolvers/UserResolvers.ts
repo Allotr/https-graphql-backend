@@ -73,8 +73,10 @@ export const UserResolvers: Resolvers = {
       }
 
       const awaitingConfirmationResources = await db.collection<ResourceDbObject>(RESOURCES).find({
-        "tickets.user._id": context.user._id,
-        "tickets.statuses.statusCode": TicketStatusCode.AwaitingConfirmation
+        $and: [
+          { "tickets.user._id": context.user._id },
+          { "tickets.statuses.statusCode": TicketStatusCode.AwaitingConfirmation }
+        ]
       }, {
         projection: {
           "tickets.$": 1,
