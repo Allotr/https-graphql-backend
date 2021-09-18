@@ -204,7 +204,14 @@ async function forwardQueue(
 async function clearOutAwaitingConfirmation(resource: ResourceDbObject, userList: ResourceUser[], context: Express.Request) {
     // First lest clear out the awaiting confirmation ones
     const cancelResourceAcquire = (ResourceResolvers as any)?.Mutation?.cancelResourceAcquire;
-    for (const user of userList) {
+    const filteredUserList = userList.filter(({ id }) => {
+        const myTicket = resource.tickets.find(({ user }) => new ObjectId(user._id ?? "").equals(id));
+        if (myTicket == null) {
+            return false;
+        }
+        return getLastStatus(myTicket).statusCode === TicketStatusCode.AwaitingConfirmation;
+    });
+    for (const user of filteredUserList) {
         try {
             await cancelResourceAcquire?.(undefined, { resourceId: new ObjectId(resource?._id ?? "").toHexString() ?? "" }, { ...context, user })
         } catch (e) {
