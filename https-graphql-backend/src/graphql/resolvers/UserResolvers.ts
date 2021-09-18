@@ -77,18 +77,6 @@ export const UserResolvers: Resolvers = {
           { "tickets.user._id": context.user._id },
           { "tickets.statuses.statusCode": TicketStatusCode.AwaitingConfirmation }
         ]
-      }, {
-        projection: {
-          "tickets.$": 1,
-          name: 1,
-          createdBy: 1,
-          description: 1,
-          maxActiveTickets: 1,
-          lastModificationDate: 1,
-          _id: 1,
-          creationDate: 1,
-          activeUserCount: 1
-        }
       }).sort({
         creationDate: 1
       }).toArray();
