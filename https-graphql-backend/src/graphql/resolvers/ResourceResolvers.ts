@@ -211,10 +211,12 @@ export const ResourceResolvers: Resolvers = {
         updateResource: async (parent, args, context: express.Request) => {
             const { name, description, maxActiveTickets, userList: newUserList, id } = args.resource
             const timestamp = new Date();
-
+            console.log("BEFORE ANYTHING");
             const db = await (await context.mongoDBConnection).db;
+            console.log("CREATED DB");
 
             const client = await (await context.mongoDBConnection).connection;
+            console.log("CREATED CLIENT");
 
             let result: UpdateResult = { status: OperationResult.Ok };
 
@@ -222,6 +224,7 @@ export const ResourceResolvers: Resolvers = {
 
             // // Step 1: Start a Client Session
             const sessionInit = client.startSession();
+            console.log("STARTED SESSION");
 
             // Step 2: Optional. Define options to use for the transaction
             const transactionOptions: TransactionOptions = {
@@ -236,6 +239,7 @@ export const ResourceResolvers: Resolvers = {
 
             try {
                 await sessionInit.withTransaction(async () => {
+                    console.log("START FIRST TRANSACTION");
                     const userNameList = newUserList
                         .map<Promise<[string, CustomTryCatch<UserDbObject | null | undefined>]>>(async ({ id }) =>
                             [
