@@ -235,7 +235,6 @@ export const ResourceResolvers: Resolvers = {
 
             let categorizedUserData: CategorizedArrayData<ResourceUser> = { add: [], delete: [], modify: [] };
             let userNameMap: Record<string, string> = {};
-            let initResource: ResourceDbObject | null | undefined;
 
             try {
                 await sessionInit.withTransaction(async () => {
@@ -258,25 +257,22 @@ export const ResourceResolvers: Resolvers = {
                     }
                     userNameMap = Object.fromEntries(userListResult.map(([id, { result: user }]) => [id, user?.username ?? ""]));
 
-                    initResource = await getResource(id ?? "", db, sessionInit)
-                    if (initResource == null) {
+                    const resource = await getResource(id ?? "", db, sessionInit)
+                    if (resource == null) {
                         return { status: OperationResult.Error }
                     }
                     console.log("HACE SEGUNDA QUERY")
-                    const oldUserList = initResource?.tickets?.map<ResourceUser>(({ user }) => ({ id: user._id?.toHexString() ?? "", role: user.role as LocalRole }))
+                    const oldUserList = resource?.tickets?.map<ResourceUser>(({ user }) => ({ id: user._id?.toHexString() ?? "", role: user.role as LocalRole }))
 
                     categorizedUserData = categorizeArrayData(oldUserList, newUserList);
+                    await clearOutQueueDependantTickets(resource, categorizedUserData.delete, context, TicketStatusCode.Active, db, sessionInit);
+                    await clearOutQueueDependantTickets(resource, categorizedUserData.delete, context, TicketStatusCode.AwaitingConfirmation, db, sessionInit);
                 }, transactionOptions);
             } finally {
                 await sessionInit.endSession();
             }
 
             console.log("TERMINA SESION 1")
-
-            if (initResource != null) {
-                await clearOutQueueDependantTickets(initResource, categorizedUserData.delete, context, TicketStatusCode.Active, db);
-                await clearOutQueueDependantTickets(initResource, categorizedUserData.delete, context, TicketStatusCode.AwaitingConfirmation, db);
-            }
 
             console.log("TERMINA CLEAROUT QUEUE")
             // Step 1: Start a Client Session
