@@ -221,7 +221,7 @@ export const ResourceResolvers: Resolvers = {
             // First let's clear out all awaiting confirmation
 
             // // Step 1: Start a Client Session
-            const session_init = client.startSession();
+            const sessionInit = client.startSession();
 
             // Step 2: Optional. Define options to use for the transaction
             const transactionOptions: TransactionOptions = {
@@ -232,14 +232,15 @@ export const ResourceResolvers: Resolvers = {
 
             let categorizedUserData: CategorizedArrayData<ResourceUser> = { add: [], delete: [], modify: [] };
             let userNameMap: Record<string, string> = {};
+            let initResource: ResourceDbObject | null | undefined;
 
             try {
-                await session_init.withTransaction(async () => {
+                await sessionInit.withTransaction(async () => {
                     const userNameList = newUserList
                         .map<Promise<[string, CustomTryCatch<UserDbObject | null | undefined>]>>(async ({ id }) =>
                             [
                                 id,
-                                await customTryCatch(db.collection<UserDbObject>(USERS).findOne({ _id: new ObjectId(id) }, { projection: { username: 1 }, session: session_init }))
+                                await customTryCatch(db.collection<UserDbObject>(USERS).findOne({ _id: new ObjectId(id) }, { projection: { username: 1 }, session: sessionInit }))
                             ]);
                     const { error, result: userListResult } = await customTryCatch(Promise.all(userNameList));
 
@@ -253,20 +254,22 @@ export const ResourceResolvers: Resolvers = {
                     }
                     userNameMap = Object.fromEntries(userListResult.map(([id, { result: user }]) => [id, user?.username ?? ""]));
 
-                    const resource = await getResource(id ?? "", db, session_init)
-                    if (resource == null) {
+                    initResource = await getResource(id ?? "", db, sessionInit)
+                    if (initResource == null) {
                         return { status: OperationResult.Error }
                     }
 
-                    const oldUserList = resource?.tickets?.map<ResourceUser>(({ user }) => ({ id: user._id?.toHexString() ?? "", role: user.role as LocalRole }))
+                    const oldUserList = initResource?.tickets?.map<ResourceUser>(({ user }) => ({ id: user._id?.toHexString() ?? "", role: user.role as LocalRole }))
 
                     categorizedUserData = categorizeArrayData(oldUserList, newUserList);
-
-                    await clearOutQueueDependantTickets(resource, categorizedUserData.delete, context, TicketStatusCode.Active, db, session_init);
-                    await clearOutQueueDependantTickets(resource, categorizedUserData.delete, context, TicketStatusCode.AwaitingConfirmation, db, session_init);
                 }, transactionOptions);
             } finally {
-                await session_init.endSession();
+                await sessionInit.endSession();
+            }
+
+            if (initResource != null) {
+                await clearOutQueueDependantTickets(initResource, categorizedUserData.delete, context, TicketStatusCode.Active, db, sessionInit);
+                await clearOutQueueDependantTickets(initResource, categorizedUserData.delete, context, TicketStatusCode.AwaitingConfirmation, db, sessionInit);
             }
 
             // Step 1: Start a Client Session
