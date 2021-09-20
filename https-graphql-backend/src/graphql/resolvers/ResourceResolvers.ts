@@ -211,12 +211,9 @@ export const ResourceResolvers: Resolvers = {
         updateResource: async (parent, args, context: express.Request) => {
             const { name, description, maxActiveTickets, userList: newUserList, id } = args.resource
             const timestamp = new Date();
-            console.log("BEFORE ANYTHING");
             const db = await (await context.mongoDBConnection).db;
-            console.log("CREATED DB");
 
             const client = await (await context.mongoDBConnection).connection;
-            console.log("CREATED CLIENT");
 
             let result: UpdateResult = { status: OperationResult.Ok };
 
@@ -224,7 +221,6 @@ export const ResourceResolvers: Resolvers = {
 
             // // Step 1: Start a Client Session
             const sessionInit = client.startSession();
-            console.log("STARTED SESSION");
 
             // Step 2: Optional. Define options to use for the transaction
             const transactionOptions: TransactionOptions = {
@@ -238,7 +234,6 @@ export const ResourceResolvers: Resolvers = {
 
             try {
                 await sessionInit.withTransaction(async () => {
-                    console.log("START FIRST TRANSACTION");
                     const userNameList = newUserList
                         .map<Promise<[string, CustomTryCatch<UserDbObject | null | undefined>]>>(async ({ id }) =>
                             [
@@ -246,7 +241,6 @@ export const ResourceResolvers: Resolvers = {
                                 await customTryCatch(db.collection<UserDbObject>(USERS).findOne({ _id: new ObjectId(id) }, { projection: { username: 1 } }))
                             ]);
                     const { error, result: userListResult } = await customTryCatch(Promise.all(userNameList));
-                    console.log("HACE PRIMERA QUERY")
                     if (error != null || userListResult == null) {
                         return {
                             status: OperationResult.Error,
@@ -261,7 +255,6 @@ export const ResourceResolvers: Resolvers = {
                     if (resource == null) {
                         return { status: OperationResult.Error }
                     }
-                    console.log("HACE SEGUNDA QUERY")
                     const oldUserList = resource?.tickets?.map<ResourceUser>(({ user }) => ({ id: user._id?.toHexString() ?? "", role: user.role as LocalRole }))
 
                     categorizedUserData = categorizeArrayData(oldUserList, newUserList);
@@ -272,9 +265,7 @@ export const ResourceResolvers: Resolvers = {
                 await sessionInit.endSession();
             }
 
-            console.log("TERMINA SESION 1")
 
-            console.log("TERMINA CLEAROUT QUEUE")
             // Step 1: Start a Client Session
             const session = client.startSession();
             // Step 3: Use withTransaction to start a transaction, execute the callback, and commit (or abort on error)
@@ -286,7 +277,6 @@ export const ResourceResolvers: Resolvers = {
                         return { status: OperationResult.Error }
                     }
 
-                    console.log("SESION 2 OP 1")
 
                     // Update
                     await db.collection<ResourceDbObject>(RESOURCES).updateMany({
@@ -310,10 +300,8 @@ export const ResourceResolvers: Resolvers = {
                     }, {
                         session
                     })
-                    console.log("SESION 2 OP 2")
 
                     await removeUsersInQueue(resource, categorizedUserData.delete, timestamp, 2, db, context, session);
-                    console.log("SESION 2 OP 3")
 
                     for (const { id: ticketUserId, role } of categorizedUserData.modify) {
                         await db.collection<ResourceDbObject>(RESOURCES).updateMany({
@@ -334,7 +322,6 @@ export const ResourceResolvers: Resolvers = {
                         })
 
                     }
-                    console.log("SESION 2 OP 4")
 
                     // Find all results
                     await db.collection<ResourceDbObject>(RESOURCES).updateMany({
@@ -349,7 +336,6 @@ export const ResourceResolvers: Resolvers = {
                     }, {
                         session
                     });
-                    console.log("SESION 2 OP 5")
 
                     if (result == null) {
                         return { status: OperationResult.Error, newObjectId: null };
@@ -359,7 +345,6 @@ export const ResourceResolvers: Resolvers = {
                 await session.endSession();
             }
 
-            console.log("TERMINA SESION 2")
             if (result.status === OperationResult.Error) {
                 return result;
             }
