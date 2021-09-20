@@ -262,8 +262,8 @@ export const ResourceResolvers: Resolvers = {
 
                     categorizedUserData = categorizeArrayData(oldUserList, newUserList);
 
-                    await clearOutQueueDependantTickets(resource, categorizedUserData.delete, context, TicketStatusCode.Active);
-                    await clearOutQueueDependantTickets(resource, categorizedUserData.delete, context, TicketStatusCode.AwaitingConfirmation);
+                    await clearOutQueueDependantTickets(resource, categorizedUserData.delete, context, TicketStatusCode.Active, db, session_init);
+                    await clearOutQueueDependantTickets(resource, categorizedUserData.delete, context, TicketStatusCode.AwaitingConfirmation, db, session_init);
                 }, transactionOptions);
             } finally {
                 await session_init.endSession();
