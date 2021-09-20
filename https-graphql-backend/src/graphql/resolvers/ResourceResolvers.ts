@@ -244,7 +244,7 @@ export const ResourceResolvers: Resolvers = {
                         .map<Promise<[string, CustomTryCatch<UserDbObject | null | undefined>]>>(async ({ id }) =>
                             [
                                 id,
-                                await customTryCatch(db.collection<UserDbObject>(USERS).findOne({ _id: new ObjectId(id) }, { projection: { username: 1 }, session: sessionInit }))
+                                await customTryCatch(db.collection<UserDbObject>(USERS).findOne({ _id: new ObjectId(id) }, { projection: { username: 1 } }))
                             ]);
                     const { error, result: userListResult } = await customTryCatch(Promise.all(userNameList));
                     console.log("HACE PRIMERA QUERY")
