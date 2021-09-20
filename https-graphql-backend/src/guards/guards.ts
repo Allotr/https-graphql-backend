@@ -1,11 +1,11 @@
 import { Resolvers, OperationResult, ResourceDbObject, UserDbObject, LocalRole, TicketStatusCode, ErrorCode, User, ResourceCard, Ticket } from "allotr-graphql-schema-types";
 import { ObjectId, ClientSession, Db } from "mongodb";
-import { getFirstQueuePosition, getLastQueuePosition, getLastStatus } from "../utils/data-util";
+import { addMSToTime, getFirstQueuePosition, getLastQueuePosition, getLastStatus } from "../utils/data-util";
 import { VALID_STATUES_MAP } from "../consts/valid-statuses-map";
 import { getUserTicket, getAwaitingTicket, getResource } from "../utils/resolver-utils";
 
 
-async function canRequestStatusChange(userId: string | ObjectId, resourceId: string, targetStatus: TicketStatusCode, session: ClientSession, db: Db): Promise<{
+async function canRequestStatusChange(userId: string | ObjectId, resourceId: string, targetStatus: TicketStatusCode, timestamp: Date, db: Db): Promise<{
     canRequest: boolean,
     ticketId?: ObjectId | null,
     activeUserCount?: number,
@@ -16,6 +16,10 @@ async function canRequestStatusChange(userId: string | ObjectId, resourceId: str
     firstQueuePosition: number
 }> {
     const resource = await getResource(resourceId, db);
+    if(new Date(resource?.lastModificationDate ?? "").getTime() > timestamp.getTime()){
+        // If race condition, add 1 ms to lastModificationDate
+        timestamp = addMSToTime(new Date(resource?.lastModificationDate ?? ""), 1);
+    }
     const lastQueuePosition = getLastQueuePosition(resource?.tickets);
     const firstQueuePosition = getFirstQueuePosition(resource?.tickets);
     const userTicket = await getUserTicket(userId, resourceId, db);
