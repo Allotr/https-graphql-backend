@@ -8,7 +8,7 @@ import { VALID_STATUES_MAP } from "src/consts/valid-statuses-map";
 import { getRedisConnection } from "./redis-connector";
 import { ResourceResolvers } from "../graphql/resolvers/ResourceResolvers";
 import express from "express";
-async function getUserTicket(userId: string | ObjectId, resourceId: string, db: Db): Promise<ResourceDbObject | null> {
+async function getUserTicket(userId: string | ObjectId, resourceId: string, db: Db, session?: ClientSession): Promise<ResourceDbObject | null> {
     const [parsedUserId, parsedResourceId] = [new ObjectId(userId), new ObjectId(resourceId)];
 
     const [userTikcet] = await db.collection<ResourceDbObject>(RESOURCES).find({
@@ -28,7 +28,8 @@ async function getUserTicket(userId: string | ObjectId, resourceId: string, db: 
             _id: 1,
             creationDate: 1,
             activeUserCount: 1
-        }
+        },
+        session
     }).sort({
         lastModificationDate: -1
     }).toArray();
@@ -36,7 +37,7 @@ async function getUserTicket(userId: string | ObjectId, resourceId: string, db: 
     return userTikcet;
 }
 
-async function getResource(resourceId: string, db: Db): Promise<ResourceDbObject | null | undefined> {
+async function getResource(resourceId: string, db: Db, session?: ClientSession): Promise<ResourceDbObject | null | undefined> {
 
 
     const userTikcet = await db.collection<ResourceDbObject>(RESOURCES).findOne({
@@ -44,12 +45,12 @@ async function getResource(resourceId: string, db: Db): Promise<ResourceDbObject
         "tickets.statuses.statusCode": {
             $ne: TicketStatusCode.Revoked
         }
-    });
+    }, { session });
 
     return userTikcet;
 }
 
-async function getAwaitingTicket(resourceId: string, db: Db): Promise<ResourceDbObject | null> {
+async function getAwaitingTicket(resourceId: string, db: Db, session?: ClientSession): Promise<ResourceDbObject | null> {
 
     const parsedResourceId = new ObjectId(resourceId);
     const [userTikcet] = await db.collection<ResourceDbObject>(RESOURCES).find({
@@ -66,7 +67,8 @@ async function getAwaitingTicket(resourceId: string, db: Db): Promise<ResourceDb
             _id: 1,
             creationDate: 1,
             activeUserCount: 1
-        }
+        },
+        session
     }).sort({
         lastModificationDate: -1
     }).toArray();
@@ -75,10 +77,10 @@ async function getAwaitingTicket(resourceId: string, db: Db): Promise<ResourceDb
 }
 
 
-async function getUser(userId: ObjectId | null | undefined, db: Db): Promise<UserDbObject | null | undefined> {
+async function getUser(userId: ObjectId | null | undefined, db: Db, session?: ClientSession): Promise<UserDbObject | null | undefined> {
     const userTikcet = await db.collection<UserDbObject>(USERS).findOne({
         _id: userId,
-    })
+    }, { session })
 
     return userTikcet;
 }
@@ -289,7 +291,7 @@ async function removeUsersInQueue(resource: ResourceDbObject, userList: Resource
         "user._id": {
             $in: [...userList?.map(({ id }) => !!id ? new ObjectId(id) : null).filter(Boolean)]
         }
-    })
+    }, { session })
 
 
     await db.collection<ResourceDbObject>(RESOURCES).updateMany({
@@ -403,7 +405,7 @@ const generateOutputByResource: Record<RequestSource, (resource: ResourceDbObjec
 
 
 async function pushNotification(resourceName: string, resourceId: ObjectId | null | undefined,
-    createdByUserId: ObjectId | null | undefined, createdByUsername: string | undefined, timestamp: Date, db: Db) {
+    createdByUserId: ObjectId | null | undefined, createdByUsername: string | undefined, timestamp: Date, db: Db, session?: ClientSession) {
 
 
     // let's notify all the WebPush links associated with the user
@@ -425,7 +427,7 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
         resource: { _id: resourceId, name: resourceName, createdBy: { _id: createdByUserId, username: createdByUsername ?? "" } },
         timestamp
     };
-    await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).insertOne(notificationData);
+    await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).insertOne(notificationData, { session });
 
     // Finally, we obtain the destined user subscriptions
     const fullReceivingUser = await getUser(user?._id, db);
@@ -455,6 +457,7 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
                     "webPushSubscriptions": subscription
                 }
             }, {
+                session,
                 arrayFilters: [],
             })
         }
