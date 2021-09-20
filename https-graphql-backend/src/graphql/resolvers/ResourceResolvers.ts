@@ -239,7 +239,7 @@ export const ResourceResolvers: Resolvers = {
                         .map<Promise<[string, CustomTryCatch<UserDbObject | null | undefined>]>>(async ({ id }) =>
                             [
                                 id,
-                                await customTryCatch(db.collection<UserDbObject>(USERS).findOne({ _id: new ObjectId(id) }, { projection: { username: 1 } }))
+                                await customTryCatch(db.collection<UserDbObject>(USERS).findOne({ _id: new ObjectId(id) }, { projection: { username: 1 }, session: session_init }))
                             ]);
                     const { error, result: userListResult } = await customTryCatch(Promise.all(userNameList));
 
@@ -253,7 +253,7 @@ export const ResourceResolvers: Resolvers = {
                     }
                     userNameMap = Object.fromEntries(userListResult.map(([id, { result: user }]) => [id, user?.username ?? ""]));
 
-                    const resource = await getResource(id ?? "", db)
+                    const resource = await getResource(id ?? "", db, session_init)
                     if (resource == null) {
                         return { status: OperationResult.Error }
                     }
@@ -275,7 +275,7 @@ export const ResourceResolvers: Resolvers = {
             // Note: The callback for withTransaction MUST be async and/or return a Promise.
             try {
                 await session.withTransaction(async () => {
-                    const resource = await getResource(id ?? "", db)
+                    const resource = await getResource(id ?? "", db, session)
                     if (resource == null) {
                         return { status: OperationResult.Error }
                     }
@@ -382,7 +382,7 @@ export const ResourceResolvers: Resolvers = {
         // Resource management operations
         requestResource: async (parent, args, context: express.Request) => {
             const { requestFrom, resourceId } = args
-            const timestamp = new Date();
+            let timestamp = new Date();
 
             const client = await (await context.mongoDBConnection).connection;
             const db = await (await context.mongoDBConnection).db;
@@ -410,7 +410,7 @@ export const ResourceResolvers: Resolvers = {
                         previousStatusCode,
                         lastQueuePosition,
                         firstQueuePosition
-                    } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Requesting, session, db);
+                    } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Requesting, timestamp, db, session);
 
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
@@ -454,7 +454,7 @@ export const ResourceResolvers: Resolvers = {
         },
         acquireResource: async (parent, args, context: express.Request) => {
             const { resourceId } = args
-            const timestamp = new Date();
+            let timestamp = new Date();
 
             const client = await (await context.mongoDBConnection).connection;
             const db = await (await context.mongoDBConnection).db;
@@ -474,7 +474,7 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Active, session, db);
+                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Active, timestamp, db, session);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
@@ -492,7 +492,7 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session2.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Active, session2, db);
+                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Active, timestamp, db, session2);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
@@ -523,7 +523,7 @@ export const ResourceResolvers: Resolvers = {
         },
         cancelResourceAcquire: async (parent, args, context: express.Request) => {
             const { resourceId } = args
-            const timestamp = new Date();
+            let timestamp = new Date();
 
             const client = await (await context.mongoDBConnection).connection;
             const db = await (await context.mongoDBConnection).db;
@@ -543,7 +543,7 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Inactive, session, db);
+                    const { canRequest, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Inactive, timestamp, db, session);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
@@ -561,7 +561,7 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session2.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Queued, session2, db);
+                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Queued, timestamp, db, session2);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
@@ -597,7 +597,7 @@ export const ResourceResolvers: Resolvers = {
         },
         releaseResource: async (parent, args, context: express.Request) => {
             const { requestFrom, resourceId } = args
-            const timestamp = new Date();
+            let timestamp = new Date();
 
             const client = await (await context.mongoDBConnection).connection;
             const db = await (await context.mongoDBConnection).db;
@@ -617,7 +617,7 @@ export const ResourceResolvers: Resolvers = {
             try {
                 await session.withTransaction(async () => {
                     // Check if we can request the resource right now
-                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Inactive, session, db);
+                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Inactive, timestamp, db, session);
                     if (!canRequest) {
                         result = { status: OperationResult.Error }
                         throw result;
