@@ -211,7 +211,6 @@ export const ResourceResolvers: Resolvers = {
         updateResource: async (parent, args, context: express.Request) => {
             const { name, description, maxActiveTickets, userList: newUserList, id } = args.resource
             const timestamp = new Date();
-
             const db = await (await context.mongoDBConnection).db;
 
             const client = await (await context.mongoDBConnection).connection;
@@ -221,7 +220,7 @@ export const ResourceResolvers: Resolvers = {
             // First let's clear out all awaiting confirmation
 
             // // Step 1: Start a Client Session
-            const session_init = client.startSession();
+            const sessionInit = client.startSession();
 
             // Step 2: Optional. Define options to use for the transaction
             const transactionOptions: TransactionOptions = {
@@ -234,15 +233,14 @@ export const ResourceResolvers: Resolvers = {
             let userNameMap: Record<string, string> = {};
 
             try {
-                await session_init.withTransaction(async () => {
+                await sessionInit.withTransaction(async () => {
                     const userNameList = newUserList
                         .map<Promise<[string, CustomTryCatch<UserDbObject | null | undefined>]>>(async ({ id }) =>
                             [
                                 id,
-                                await customTryCatch(db.collection<UserDbObject>(USERS).findOne({ _id: new ObjectId(id) }, { projection: { username: 1 }, session: session_init }))
+                                await customTryCatch(db.collection<UserDbObject>(USERS).findOne({ _id: new ObjectId(id) }, { projection: { username: 1 } }))
                             ]);
                     const { error, result: userListResult } = await customTryCatch(Promise.all(userNameList));
-
                     if (error != null || userListResult == null) {
                         return {
                             status: OperationResult.Error,
@@ -253,21 +251,20 @@ export const ResourceResolvers: Resolvers = {
                     }
                     userNameMap = Object.fromEntries(userListResult.map(([id, { result: user }]) => [id, user?.username ?? ""]));
 
-                    const resource = await getResource(id ?? "", db, session_init)
+                    const resource = await getResource(id ?? "", db, sessionInit)
                     if (resource == null) {
                         return { status: OperationResult.Error }
                     }
-
                     const oldUserList = resource?.tickets?.map<ResourceUser>(({ user }) => ({ id: user._id?.toHexString() ?? "", role: user.role as LocalRole }))
 
                     categorizedUserData = categorizeArrayData(oldUserList, newUserList);
-
-                    await clearOutQueueDependantTickets(resource, categorizedUserData.delete, context, TicketStatusCode.Active);
-                    await clearOutQueueDependantTickets(resource, categorizedUserData.delete, context, TicketStatusCode.AwaitingConfirmation);
+                    await clearOutQueueDependantTickets(resource, categorizedUserData.delete, context, TicketStatusCode.Active, db, sessionInit);
+                    await clearOutQueueDependantTickets(resource, categorizedUserData.delete, context, TicketStatusCode.AwaitingConfirmation, db, sessionInit);
                 }, transactionOptions);
             } finally {
-                await session_init.endSession();
+                await sessionInit.endSession();
             }
+
 
             // Step 1: Start a Client Session
             const session = client.startSession();
@@ -279,7 +276,6 @@ export const ResourceResolvers: Resolvers = {
                     if (resource == null) {
                         return { status: OperationResult.Error }
                     }
-
 
 
                     // Update
@@ -348,6 +344,7 @@ export const ResourceResolvers: Resolvers = {
             } finally {
                 await session.endSession();
             }
+
             if (result.status === OperationResult.Error) {
                 return result;
             }

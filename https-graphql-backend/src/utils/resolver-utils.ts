@@ -208,7 +208,9 @@ async function clearOutQueueDependantTickets(
     resource: ResourceDbObject,
     userList: ResourceUser[],
     context: express.Request,
-    status: typeof TicketStatusCode.Active | typeof TicketStatusCode.AwaitingConfirmation
+    status: typeof TicketStatusCode.Active | typeof TicketStatusCode.AwaitingConfirmation,
+    db: Db,
+    session?: ClientSession
 ) {
 
     const functionMap: Record<typeof status, Function> = {
@@ -233,7 +235,7 @@ async function clearOutQueueDependantTickets(
             const args = argMap[status](new ObjectId(resource?._id ?? "").toHexString() ?? "", RequestSource.Resource)
             const functionContext = {
                 ...context,
-                user: await getUser(new ObjectId(user.id), await (await context.mongoDBConnection).db)
+                user: await getUser(new ObjectId(user.id), db, session)
             }
             await functionMap[status]?.(undefined, args, functionContext);
         } catch (e) {
