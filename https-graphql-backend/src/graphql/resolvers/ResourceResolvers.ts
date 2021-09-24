@@ -215,6 +215,12 @@ export const ResourceResolvers: Resolvers = {
 
             const client = await (await context.mongoDBConnection).connection;
 
+            const hasAdminAccess = await hasAdminAccessInResource(new ObjectId(context?.user?._id ?? "").toHexString() ?? "", id ?? "", db)
+            if (!hasAdminAccess) {
+                return { status: OperationResult.Error }
+            }
+
+
             let result: UpdateResult = { status: OperationResult.Ok };
 
             // First let's clear out all awaiting confirmation
@@ -358,7 +364,7 @@ export const ResourceResolvers: Resolvers = {
 
             const hasAdminAccess = await hasAdminAccessInResource(new ObjectId(context?.user?._id ?? "").toHexString() ?? "", resourceId, db)
             if (!hasAdminAccess) {
-                console.log("Does not have admin access", hasAdminAccess, new ObjectId(context?.user?._id ?? ""), resourceId);
+                // console.log("Does not have admin access", hasAdminAccess, new ObjectId(context?.user?._id ?? ""), resourceId);
                 return { status: OperationResult.Error }
             }
 
@@ -370,7 +376,7 @@ export const ResourceResolvers: Resolvers = {
             })
 
             if (!deleteResult.deletedCount || !deleteNotificationResult.deletedCount) {
-                console.log("Has not deleted the resource or notifications");
+                // console.log("Has not deleted the resource or notifications");
                 return { status: OperationResult.Error }
             }
             return { status: OperationResult.Ok };
