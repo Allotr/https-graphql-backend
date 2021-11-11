@@ -13,10 +13,10 @@ async function getUserTicket(userId: string | ObjectId, resourceId: string, db: 
 
     const [userTikcet] = await db.collection<ResourceDbObject>(RESOURCES).find({
         _id: parsedResourceId,
-        "tickets.user._id": parsedUserId,
         "tickets.statuses.statusCode": {
             $ne: TicketStatusCode.Revoked
-        }
+        },
+        "tickets.user._id": parsedUserId
     }, {
         projection: {
             "tickets.$": 1,
