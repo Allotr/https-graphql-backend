@@ -17,10 +17,10 @@ export const ResourceResolvers: Resolvers = {
 
 
             const myCurrentTicket = await db.collection<ResourceDbObject>(RESOURCES).find({
-                "tickets.user._id": context.user._id,
                 "tickets.statuses.statusCode": {
                     $ne: TicketStatusCode.Revoked
-                }
+                },
+                "tickets.user._id": context.user._id
             }, {
                 projection: {
                     "tickets.$": 1,
