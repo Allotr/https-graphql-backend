@@ -66,7 +66,8 @@ function initializeGooglePassport(app: express.Express) {
                 const currentUser = await db.collection<UserDbObject>(USERS).findOne({ oauthIds: { googleId: profile.id } })
 
                 // Closed beta feature - Only allow access to whitelisted users
-                const isInWhiteList = await db.collection<UserWhitelistDbObject>(USER_WHITELIST).findOne({ _id: profile.id  });
+                const username = profile._json.email.split('@')?.[0];
+                const isInWhiteList = await db.collection<UserWhitelistDbObject>(USER_WHITELIST).findOne({ username });
 
                 if (!isInWhiteList){
                     done(new Error("This is a closed beta. Ask me on Twitter (@rafaelpernil) to give you access. Thanks for your time :)"))
@@ -79,7 +80,7 @@ function initializeGooglePassport(app: express.Express) {
                 } else {
                     //if not, create a new user 
                     const userToCreate = {
-                        username: profile._json.email.split('@')?.[0],
+                        username,
                         globalRole: GlobalRole.User,
                         creationDate: new Date(),
                         name: profile.name?.givenName,
