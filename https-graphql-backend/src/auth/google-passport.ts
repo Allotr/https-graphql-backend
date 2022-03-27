@@ -71,6 +71,7 @@ function initializeGooglePassport(app: express.Express) {
 
                 if (!isInWhiteList){
                     done(new Error("This is a closed beta. Ask me on Twitter (@rafaelpernil) to give you access. Thanks for your time :)"))
+                    return;
                 }
 
                 //check if user already exists in our db with the given profile ID
@@ -124,7 +125,7 @@ function initializeGooglePassport(app: express.Express) {
 
     app.get('/auth/google/redirect',
         passport.authenticate('google', {
-            failureRedirect: '/failed', successRedirect: REDIRECT_URL
+            failureRedirect: 'https://api.allotr.eu/failed', successRedirect: REDIRECT_URL
         }));
 
     app.get("/auth/google/logout", (req, res) => {
