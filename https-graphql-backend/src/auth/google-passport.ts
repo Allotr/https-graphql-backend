@@ -125,7 +125,7 @@ function initializeGooglePassport(app: express.Express) {
 
     app.get('/auth/google/redirect',
         passport.authenticate('google', {
-            failureRedirect: 'https://api.allotr.eu/failed', successRedirect: REDIRECT_URL
+            failureRedirect: '/failed', successRedirect: REDIRECT_URL
         }));
 
     app.get("/auth/google/logout", (req, res) => {
