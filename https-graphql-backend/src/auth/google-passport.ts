@@ -1,15 +1,15 @@
 import express from "express";
 import { getLoadedEnvVariables } from "../utils/env-loader";
-import { UserDbObject, GlobalRole } from "allotr-graphql-schema-types";
+import { UserDbObject, UserWhitelistDbObject, GlobalRole } from "allotr-graphql-schema-types";
 import { ObjectId } from "mongodb"
 
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import session from "express-session";
 import MongoStore from 'connect-mongo';
-import { USERS } from "../consts/collections";
+import { USERS, USER_WHITELIST } from "../consts/collections";
 import { getMongoDBConnection } from "../utils/mongodb-connector";
-// import { GraphQLLocalStrategy, buildContext, createOnConnect } from 'graphql-passport';
+
 const cors = require('cors');
 
 function isLoggedIn(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -64,6 +64,14 @@ function initializeGooglePassport(app: express.Express) {
                 // passport callback function
                 const db = await (await getMongoDBConnection()).db;
                 const currentUser = await db.collection<UserDbObject>(USERS).findOne({ oauthIds: { googleId: profile.id } })
+
+                // Closed beta feature - Only allow access to whitelisted users
+                const isInWhiteList = await db.collection<UserWhitelistDbObject>(USER_WHITELIST).findOne({ _id: profile.id  });
+
+                if (!isInWhiteList){
+                    done(new Error("This is a closed beta. Ask me on Twitter (@rafaelpernil) to give you access. Thanks for your time :)"))
+                }
+
                 //check if user already exists in our db with the given profile ID
                 if (currentUser) {
                     //if we already have a record with the given profile ID
