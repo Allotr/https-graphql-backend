@@ -61,7 +61,7 @@ export const UserResolvers: Resolvers = {
         try {
           await clearOutQueueDependantTickets(resource, [{ id: userId, role: LocalRole.ResourceUser }], context, TicketStatusCode.AwaitingConfirmation, db);
           await clearOutQueueDependantTickets(resource, [{ id: userId, role: LocalRole.ResourceUser }], context, TicketStatusCode.Active, db);
-          await removeUsersInQueue(resource, [{ id: userId, role: LocalRole.ResourceUser }], timestamp, 2, db, context);
+          await removeUsersInQueue(resource, [{ id: userId, role: LocalRole.ResourceUser }], timestamp, db, context);
         } catch (e) {
           console.log("Some queue dependant resource could not be cleared out");
         }

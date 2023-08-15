@@ -12,24 +12,8 @@ async function customTryCatch<T>(promise: Promise<T>): Promise<CustomTryCatch<T>
     }
 }
 
-function compareDates(dateA: Date, dateB: Date) {
-    const comparison = new Date(dateA).getTime() - new Date(dateB).getTime();
-    if (comparison > 0)
-        return 1;
-    if (comparison < 0)
-        return -1;
-    return 0;
-}
-
 function generateChannelId(communicationToken: string, userId?: ObjectId | null): string {
     return communicationToken + "_" + (userId ? new ObjectId(userId).toHexString() : "")
-}
-
-function addMSToTime(date: Date, extraMS: number): Date {
-    // const newDate = date;
-    // newDate.setMilliseconds(newDate.getMilliseconds() + extraMS)
-    // return newDate;
-    return date;
 }
 
 function getLastStatus(myTicket?: TicketDbObject): TicketStatusDbObject {
@@ -81,4 +65,4 @@ function categorizeArrayData<T extends { id: string }>(previousList: T[], newLis
     return total;
 }
 
-export { customTryCatch, compareDates, generateChannelId, getLastStatus, getLastQueuePosition, addMSToTime, categorizeArrayData, getFirstQueuePosition }
+export { customTryCatch, generateChannelId, getLastStatus, getLastQueuePosition, categorizeArrayData, getFirstQueuePosition }

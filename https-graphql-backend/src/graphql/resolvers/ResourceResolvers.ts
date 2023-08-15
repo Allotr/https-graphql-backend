@@ -307,7 +307,7 @@ export const ResourceResolvers: Resolvers = {
                         session
                     })
 
-                    await removeUsersInQueue(resource, categorizedUserData.delete, timestamp, 2, db, context, session);
+                    await removeUsersInQueue(resource, categorizedUserData.delete, timestamp, db, context, session);
 
                     for (const { id: ticketUserId, role } of categorizedUserData.modify) {
                         await db.collection<ResourceDbObject>(RESOURCES).updateMany({
@@ -424,15 +424,15 @@ export const ResourceResolvers: Resolvers = {
                     await pushNewStatus(resourceId, ticketId, {
                         statusCode: TicketStatusCode.Requesting,
                         timestamp
-                    }, 1, session, db, previousStatusCode);
+                    }, session, db, previousStatusCode);
 
 
 
                     // Here comes the logic to enter the queue or set the status as active
                     if (activeUserCount < maxActiveTickets && (lastQueuePosition === 0)) {
-                        await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Active, timestamp }, 2, session, db, TicketStatusCode.Requesting);
+                        await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Active, timestamp }, session, db, TicketStatusCode.Requesting);
                     } else {
-                        await enqueue(resourceId, ticketId, timestamp, 2, session, db);
+                        await enqueue(resourceId, ticketId, timestamp, session, db);
                     }
 
 
@@ -502,8 +502,8 @@ export const ResourceResolvers: Resolvers = {
                     }
                     // Change status to active
                     // Move people forward in the queue
-                    await forwardQueue(resourceId, timestamp, 2, session2, db);
-                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Active, timestamp }, 3, session2, db, previousStatusCode);
+                    await forwardQueue(resourceId, timestamp, session2, db);
+                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Active, timestamp }, session2, db, previousStatusCode);
 
 
                 }, transactionOptions);
@@ -571,8 +571,8 @@ export const ResourceResolvers: Resolvers = {
                     }
                     // Change status to active
                     // Move people forward in the queue
-                    await forwardQueue(resourceId, timestamp, 2, session2, db);
-                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Inactive, timestamp }, 3, session2, db, previousStatusCode);
+                    await forwardQueue(resourceId, timestamp, session2, db);
+                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Inactive, timestamp }, session2, db, previousStatusCode);
 
 
                 }, transactionOptions);
@@ -591,7 +591,7 @@ export const ResourceResolvers: Resolvers = {
             }
 
             const firstQueuePosition = getFirstQueuePosition(resource?.tickets ?? []);
-            await notifyFirstInQueue(resourceId, timestamp, 3, firstQueuePosition, db);
+            await notifyFirstInQueue(resourceId, timestamp, firstQueuePosition, db);
 
             await pushNotification(resource?.name, resource?._id, resource?.createdBy?._id, resource?.createdBy?.username, timestamp, db);
 
@@ -626,11 +626,11 @@ export const ResourceResolvers: Resolvers = {
                         throw result;
                     }
                     // Change status to inactive
-                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Inactive, timestamp }, 1, session, db, previousStatusCode);
+                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Inactive, timestamp }, session, db, previousStatusCode);
 
 
                     // Notify our next in queue user
-                    await notifyFirstInQueue(resourceId, timestamp, 2, firstQueuePosition, db, session);
+                    await notifyFirstInQueue(resourceId, timestamp, firstQueuePosition, db, session);
                 }, transactionOptions);
             } finally {
                 await session.endSession();
