@@ -26,13 +26,14 @@ function generateChannelId(communicationToken: string, userId?: ObjectId | null)
 }
 
 function addMSToTime(date: Date, extraMS: number): Date {
-    const newDate = date;
-    newDate.setMilliseconds(newDate.getMilliseconds() + extraMS)
-    return newDate;
+    // const newDate = date;
+    // newDate.setMilliseconds(newDate.getMilliseconds() + extraMS)
+    // return newDate;
+    return date;
 }
 
 function getLastStatus(myTicket?: TicketDbObject): TicketStatusDbObject {
-    return myTicket?.statuses.reduce((latest, current) => compareDates(current.timestamp, latest.timestamp) > 0 ? current : latest) ?? {
+    return myTicket?.statuses[myTicket?.statuses.length - 1] ?? {
         statusCode: TicketStatusCode.Initialized,
         timestamp: new Date(),
         queuePosition: null
@@ -67,7 +68,7 @@ function categorizeArrayData<T extends { id: string }>(previousList: T[], newLis
         const indexInNewList = newListCopy.findIndex(({ id }) => id === previousData.id);
         if (indexInNewList !== -1) {
             // If found, we modify
-            total.modify.push({...previousData, ...newListCopy[indexInNewList]})
+            total.modify.push({ ...previousData, ...newListCopy[indexInNewList] })
             // And we remove the found value from the new list
             newListCopy.splice(indexInNewList, 1);
         } else {
