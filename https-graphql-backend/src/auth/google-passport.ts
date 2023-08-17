@@ -9,7 +9,7 @@ import session from "express-session";
 import MongoStore from 'connect-mongo';
 import { USERS, USER_WHITELIST } from "../consts/collections";
 import { getMongoDBConnection } from "../utils/mongodb-connector";
-import { getBooleanByString } from "utils/data-util";
+import { getBooleanByString } from "../utils/data-util";
 
 const cors = require('cors');
 
