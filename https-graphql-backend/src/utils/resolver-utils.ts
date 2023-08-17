@@ -1,6 +1,6 @@
-import { Resolvers, OperationResult, ResourceDbObject, UserDbObject, LocalRole, TicketStatusCode, ErrorCode, User, ResourceCard, Ticket, RequestSource, ResourceManagementResult, ResourceNotification, ResourceNotificationDbObject, WebPushSubscription, Resource, ResourceUser } from "allotr-graphql-schema-types";
+import { OperationResult, ResourceDbObject, UserDbObject, LocalRole, TicketStatusCode, RequestSource, ResourceManagementResult, ResourceNotificationDbObject, ResourceUser } from "allotr-graphql-schema-types";
 import { ObjectId, ClientSession, Db } from "mongodb";
-import { addMSToTime, generateChannelId, getLastQueuePosition, getLastStatus } from "./data-util";
+import { generateChannelId, getLastQueuePosition, getLastStatus } from "./data-util";
 import { NOTIFICATIONS, RESOURCES, USERS } from "../consts/collections";
 import { sendNotification } from "../notifications/web-push";
 import { RESOURCE_READY_TO_PICK } from "../consts/connection-tokens";
@@ -99,16 +99,10 @@ async function pushNewStatus(
         timestamp: Date,
         queuePosition?: number
     },
-    executionPosition: number,
     session: ClientSession,
     db: Db,
     previousStatus?: TicketStatusCode,
 ) {
-
-
-    // Add 1ms to make sure the statuses are in order
-    const newTimestamp = addMSToTime(timestamp, executionPosition)
-
     const increment: Record<TicketStatusCode, number> = {
         ACTIVE: 1,
         INACTIVE: previousStatus === TicketStatusCode.Active ? -1 : 0,
@@ -124,10 +118,10 @@ async function pushNewStatus(
             activeUserCount: increment[statusCode]
         },
         $set: {
-            lastModificationDate: newTimestamp
+            lastModificationDate: timestamp
         },
         $push: {
-            "tickets.$[myTicket].statuses": { statusCode, timestamp: newTimestamp, queuePosition }
+            "tickets.$[myTicket].statuses": { statusCode, timestamp, queuePosition }
         }
     }, {
         session,
@@ -143,18 +137,16 @@ async function pushNewStatus(
 async function enqueue(
     resourceId: string,
     ticketId: ObjectId | undefined | null,
-    currentDate: Date,
-    executionPosition: number,
+    timestamp: Date,
     session: ClientSession,
     db: Db
 ) {
     const resource = await getResource(resourceId, db)
 
-    const timestamp = addMSToTime(currentDate, executionPosition)
 
     await db.collection(RESOURCES).updateOne({ _id: new ObjectId(resourceId) }, {
         $set: {
-            lastModificationDate: currentDate
+            lastModificationDate: timestamp
         },
         $push: {
             "tickets.$[myTicket].statuses": {
@@ -175,12 +167,10 @@ async function enqueue(
 
 async function forwardQueue(
     resourceId: string,
-    currentDate: Date,
-    executionPosition: number,
+    timestamp: Date,
     session: ClientSession,
     db: Db
 ) {
-    const timestamp = addMSToTime(currentDate, executionPosition)
 
     await db.collection(RESOURCES).updateOne({
         _id: new ObjectId(resourceId)
@@ -244,10 +234,9 @@ async function clearOutQueueDependantTickets(
 
 }
 
-async function removeUsersInQueue(resource: ResourceDbObject, userList: ResourceUser[], currentDate: Date,
-    executionPosition: number, db: Db, context: Express.Request, session?: ClientSession) {
+async function removeUsersInQueue(resource: ResourceDbObject, userList: ResourceUser[], timestamp: Date,
+    db: Db, context: Express.Request, session?: ClientSession) {
 
-    const timestamp = addMSToTime(currentDate, executionPosition)
     const deletionUsersQueuePosition = userList
         .map<number>(
             ({ id }) => {
@@ -344,15 +333,11 @@ async function removeAwaitingConfirmation(
 
 async function notifyFirstInQueue(
     resourceId: string,
-    currentDate: Date,
-    executionPosition: number,
+    timestamp: Date,
     firstQueuePosition: number,
     db: Db,
     session?: ClientSession
 ) {
-
-    // Add 1ms to make sure the statuses are in order
-    const timestamp = addMSToTime(currentDate, executionPosition)
     await db.collection(RESOURCES).updateOne({
         _id: new ObjectId(resourceId),
         "tickets.statuses.queuePosition": firstQueuePosition

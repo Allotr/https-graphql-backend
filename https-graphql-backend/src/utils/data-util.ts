@@ -12,27 +12,12 @@ async function customTryCatch<T>(promise: Promise<T>): Promise<CustomTryCatch<T>
     }
 }
 
-function compareDates(dateA: Date, dateB: Date) {
-    const comparison = new Date(dateA).getTime() - new Date(dateB).getTime();
-    if (comparison > 0)
-        return 1;
-    if (comparison < 0)
-        return -1;
-    return 0;
-}
-
 function generateChannelId(communicationToken: string, userId?: ObjectId | null): string {
     return communicationToken + "_" + (userId ? new ObjectId(userId).toHexString() : "")
 }
 
-function addMSToTime(date: Date, extraMS: number): Date {
-    const newDate = date;
-    newDate.setMilliseconds(newDate.getMilliseconds() + extraMS)
-    return newDate;
-}
-
 function getLastStatus(myTicket?: TicketDbObject): TicketStatusDbObject {
-    return myTicket?.statuses.reduce((latest, current) => compareDates(current.timestamp, latest.timestamp) > 0 ? current : latest) ?? {
+    return myTicket?.statuses[myTicket?.statuses.length - 1] ?? {
         statusCode: TicketStatusCode.Initialized,
         timestamp: new Date(),
         queuePosition: null
@@ -67,7 +52,7 @@ function categorizeArrayData<T extends { id: string }>(previousList: T[], newLis
         const indexInNewList = newListCopy.findIndex(({ id }) => id === previousData.id);
         if (indexInNewList !== -1) {
             // If found, we modify
-            total.modify.push({...previousData, ...newListCopy[indexInNewList]})
+            total.modify.push({ ...previousData, ...newListCopy[indexInNewList] })
             // And we remove the found value from the new list
             newListCopy.splice(indexInNewList, 1);
         } else {
@@ -80,4 +65,4 @@ function categorizeArrayData<T extends { id: string }>(previousList: T[], newLis
     return total;
 }
 
-export { customTryCatch, compareDates, generateChannelId, getLastStatus, getLastQueuePosition, addMSToTime, categorizeArrayData, getFirstQueuePosition }
+export { customTryCatch, generateChannelId, getLastStatus, getLastQueuePosition, categorizeArrayData, getFirstQueuePosition }
