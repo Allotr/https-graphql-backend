@@ -66,10 +66,10 @@ function initializeGooglePassport(app: express.Express) {
                 const currentUser = await db.collection<UserDbObject>(USERS).findOne({ oauthIds: { googleId: profile.id } })
 
                 // Closed beta feature - Only allow access to whitelisted users
-                const username = profile._json.email.split('@')?.[0];
+                const username = profile?._json?.email?.split?.('@')?.[0] ?? '';
                 const isInWhiteList = await db.collection<UserWhitelistDbObject>(USER_WHITELIST).findOne({ username });
 
-                if (!isInWhiteList){
+                if (!isInWhiteList) {
                     done(new Error("This is a closed beta. Ask me on Twitter (@rafaelpernil) to give you access. Thanks for your time :)"))
                     return;
                 }
@@ -128,9 +128,13 @@ function initializeGooglePassport(app: express.Express) {
             failureRedirect: '/failed', successRedirect: REDIRECT_URL
         }));
 
-    app.get("/auth/google/logout", (req, res) => {
-        req.logout();
-        res.redirect(REDIRECT_URL);
+    app.get("/auth/google/logout", (req, res, next) => {
+        req.logout((err) => {
+            if (err) {
+                return next(err);
+            }
+            res.redirect(REDIRECT_URL);
+        });
     });
 }
 export { initializeGooglePassport, isLoggedIn }

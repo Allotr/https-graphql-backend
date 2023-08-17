@@ -124,7 +124,9 @@ export const UserResolvers: Resolvers = {
         return result;
       }
       // Close session before it's too late!
-      context.logout();
+      context.logout((_) => {
+        // Implement if needed
+      });
       return { status: OperationResult.Ok }
     }
   }

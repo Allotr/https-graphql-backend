@@ -4,7 +4,6 @@ import { addMSToTime, generateChannelId, getLastQueuePosition, getLastStatus } f
 import { NOTIFICATIONS, RESOURCES, USERS } from "../consts/collections";
 import { sendNotification } from "../notifications/web-push";
 import { RESOURCE_READY_TO_PICK } from "../consts/connection-tokens";
-import { VALID_STATUES_MAP } from "src/consts/valid-statuses-map";
 import { getRedisConnection } from "./redis-connector";
 import { ResourceResolvers } from "../graphql/resolvers/ResourceResolvers";
 import express from "express";
@@ -437,6 +436,7 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
         return;
     }
 
+    // Send WebPush notification
     for (const subscription of fullReceivingUser?.webPushSubscriptions ?? []) {
         if (subscription == null) {
             return;
@@ -465,6 +465,7 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
         }
     }
 
+    // Send message to Redis pubsub so that GraphQL subscription web service can publish the value
     getRedisConnection().pubsub.publish(generateChannelId(RESOURCE_READY_TO_PICK, user?._id), {
         myNotificationDataSub: [
             {
