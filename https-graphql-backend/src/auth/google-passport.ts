@@ -9,6 +9,7 @@ import session from "express-session";
 import MongoStore from 'connect-mongo';
 import { USERS, USER_WHITELIST } from "../consts/collections";
 import { getMongoDBConnection } from "../utils/mongodb-connector";
+import { getBooleanByString } from "../utils/data-util";
 
 const cors = require('cors');
 
@@ -29,7 +30,9 @@ function initializeGooglePassport(app: express.Express) {
         GOOGLE_CALLBACK_URL,
         MONGO_DB_ENDPOINT,
         SESSION_SECRET,
-        REDIRECT_URL } = getLoadedEnvVariables();
+        REDIRECT_URL,
+        WHITELIST_MODE
+    } = getLoadedEnvVariables();
     const corsOptions = {
         origin: REDIRECT_URL,
         credentials: true // <-- REQUIRED backend setting
@@ -65,13 +68,18 @@ function initializeGooglePassport(app: express.Express) {
                 const db = await (await getMongoDBConnection()).db;
                 const currentUser = await db.collection<UserDbObject>(USERS).findOne({ oauthIds: { googleId: profile.id } })
 
-                // Closed beta feature - Only allow access to whitelisted users
+                // Obtain username
                 const username = profile?._json?.email?.split?.('@')?.[0] ?? '';
-                const isInWhiteList = await db.collection<UserWhitelistDbObject>(USER_WHITELIST).findOne({ username });
 
-                if (!isInWhiteList) {
-                    done(new Error("This is a closed beta. Ask me on Twitter (@rafaelpernil) to give you access. Thanks for your time :)"))
-                    return;
+                // Closed beta feature - Only allow access to whitelisted users
+                const isWhiteListModeOn = getBooleanByString(WHITELIST_MODE);
+                if (isWhiteListModeOn) {
+                    const isInWhiteList = await db.collection<UserWhitelistDbObject>(USER_WHITELIST).findOne({ username });
+
+                    if (!isInWhiteList) {
+                        done(new Error("This is a closed beta. Ask me on Twitter (@rafaelpernil) to give you access. Thanks for your time :)"))
+                        return;
+                    }
                 }
 
                 //check if user already exists in our db with the given profile ID

@@ -65,4 +65,8 @@ function categorizeArrayData<T extends { id: string }>(previousList: T[], newLis
     return total;
 }
 
-export { customTryCatch, generateChannelId, getLastStatus, getLastQueuePosition, categorizeArrayData, getFirstQueuePosition }
+function getBooleanByString(value: string): boolean {
+    return value.toLowerCase() === 'true' || value.toUpperCase() === 'Y';
+}
+
+export { customTryCatch, generateChannelId, getLastStatus, getLastQueuePosition, categorizeArrayData, getFirstQueuePosition, getBooleanByString }
