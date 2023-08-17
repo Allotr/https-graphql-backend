@@ -14,5 +14,6 @@ export interface EnvObject extends Record<string,string> {
     SSL_CRT_FILE: string,
     SSL_KEY_FILE: string,
     HTTPS_PORT: string,
-    WS_PATH: string
+    WS_PATH: string,
+    WHITELIST_MODE: string
 }
