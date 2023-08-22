@@ -10,3 +10,9 @@ declare module "express-serve-static-core" {
         user: UserDbObject;
     }
 }
+
+declare module 'express-session' {
+    export interface SessionData {
+        returnTo: string;
+    }
+}

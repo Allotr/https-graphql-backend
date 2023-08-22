@@ -34,7 +34,14 @@ function initializeGooglePassport(app: express.Express) {
         WHITELIST_MODE
     } = getLoadedEnvVariables();
     const corsOptions = {
-        origin: REDIRECT_URL,
+        origin: (origin, next) => {
+            // Test for main domain and all subdomains
+            if (origin == null || origin === 'https://allotr.eu' || /^https:\/\/\w+?\.allotr\.eu$/gm.test(origin)) {
+                next(null, true)
+            } else {
+                next(new Error('Not allowed by CORS'))
+            }
+        },
         credentials: true // <-- REQUIRED backend setting
     };
 
@@ -127,17 +134,26 @@ function initializeGooglePassport(app: express.Express) {
     app.get("/failed", (req, res) => res.send("Failed"));
 
     // Google Oauth
-    app.get("/auth/google", passport.authenticate("google", {
-        scope: ["profile", "email"]
-    }));
+    app.get("/auth/google",
+        (req, res, next) => {
+            // Save the url of the user's current page so the app can redirect back to it after authorization
+            req.session.returnTo = req.get('referer') ? req.get('referer')! : REDIRECT_URL;
+            next();
+        },
+        passport.authenticate("google", {
+            scope: ["profile", "email"]
+        })
+    );
 
     app.get('/auth/google/redirect',
         passport.authenticate('google', {
-            failureRedirect: '/failed', successRedirect: REDIRECT_URL
+            failureRedirect: '/failed',
+            successReturnToOrRedirect: REDIRECT_URL,
+            keepSessionInfo: true
         }));
 
     app.get("/auth/google/logout", (req, res, next) => {
-        req.logout((err) => {
+        req.session.destroy((err) => {
             if (err) {
                 return next(err);
             }
