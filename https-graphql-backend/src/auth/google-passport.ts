@@ -1,15 +1,10 @@
 import express from "express";
-import { getLoadedEnvVariables } from "../utils/env-loader";
-import { UserDbObject, UserWhitelistDbObject, GlobalRole } from "allotr-graphql-schema-types";
+import { UserDbObject } from "allotr-graphql-schema-types";
 import { ObjectId } from "mongodb"
 
 import passport from "passport";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-import session from "express-session";
-import MongoStore from 'connect-mongo';
-import { USERS, USER_WHITELIST } from "../consts/collections";
+import { USERS } from "../consts/collections";
 import { getMongoDBConnection } from "../utils/mongodb-connector";
-import { getBooleanByString } from "../utils/data-util";
 
 const cors = require('cors');
 
@@ -24,10 +19,6 @@ function isLoggedIn(req: express.Request, res: express.Response, next: express.N
 
 
 function initializeGooglePassport(app: express.Express) {
-    const {
-        MONGO_DB_ENDPOINT,
-        SESSION_SECRET
-    } = getLoadedEnvVariables();
     const corsOptions = {
         origin: (origin, next) => {
             // Test for main domain and all subdomains
@@ -40,20 +31,12 @@ function initializeGooglePassport(app: express.Express) {
         credentials: true // <-- REQUIRED backend setting
     };
 
-    const sessionMiddleware = session({
-        secret: SESSION_SECRET,
-        resave: false,
-        saveUninitialized: false,
-        cookie: { domain: '.allotr.eu', maxAge: 30 * 24 * 60 * 60 * 1000 },
-        store: new MongoStore({ mongoUrl: MONGO_DB_ENDPOINT }),
-    })
 
     const passportMiddleware = passport.initialize();
     const passportSessionMiddleware = passport.session();
 
     app.use(cors(corsOptions));
 
-    app.use(sessionMiddleware)
     app.use(passportMiddleware)
     app.use(passportSessionMiddleware)
 
