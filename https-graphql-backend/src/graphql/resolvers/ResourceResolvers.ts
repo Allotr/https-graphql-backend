@@ -650,7 +650,7 @@ export const ResourceResolvers: Resolvers = {
                 return { status: OperationResult.Error }
             }
 
-            await pushNotification(resource?.name, resource?._id, resource?.createdBy?._id, resource?.createdBy?.username, timestamp, db, context);
+            await pushNotification(resource?.name, resource?._id, resource?.createdBy?._id, resource?.createdBy?.username, timestamp, db);
 
 
             // Status changed, now let's return the new resource
