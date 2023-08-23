@@ -62,57 +62,7 @@ function initializeGooglePassport(app: express.Express) {
     app.use(passportMiddleware)
     app.use(passportSessionMiddleware)
 
-    passport.use(
-        new GoogleStrategy(
-            {
-                clientID: GOOGLE_CLIENT_ID,
-                clientSecret: GOOGLE_CLIENT_SECRET,
-                callbackURL: GOOGLE_CALLBACK_URL,
-                passReqToCallback: false
-            },
-            async (accessToken, refreshToken, profile, done) => {
-                // passport callback function
-                const db = await (await getMongoDBConnection()).db;
-                const currentUser = await db.collection<UserDbObject>(USERS).findOne({ oauthIds: { googleId: profile.id } })
-
-                // Obtain username
-                const username = profile?._json?.email?.split?.('@')?.[0] ?? '';
-
-                // Closed beta feature - Only allow access to whitelisted users
-                const isWhiteListModeOn = getBooleanByString(WHITELIST_MODE);
-                if (isWhiteListModeOn) {
-                    const isInWhiteList = await db.collection<UserWhitelistDbObject>(USER_WHITELIST).findOne({ username });
-
-                    if (!isInWhiteList) {
-                        done(new Error("This is a closed beta. Ask me on Twitter (@rafaelpernil) to give you access. Thanks for your time :)"))
-                        return;
-                    }
-                }
-
-                //check if user already exists in our db with the given profile ID
-                if (currentUser) {
-                    //if we already have a record with the given profile ID
-                    done(null, currentUser);
-                } else {
-                    //if not, create a new user 
-                    const userToCreate = {
-                        username,
-                        globalRole: GlobalRole.User,
-                        creationDate: new Date(),
-                        name: profile.name?.givenName,
-                        surname: profile.name?.familyName,
-                        userPreferences: {},
-                        oauthIds: { googleId: profile.id },
-                        webPushSubscriptions: []
-                    };
-                    await db.collection<UserDbObject>(USERS).insertOne(userToCreate)
-                    await db.collection<UserDbObject>(USERS).createIndex({ username: "text", name: "text", surname: "text" })
-
-                    done(null, userToCreate);
-                }
-            })
-    )
-
+    
     passport.serializeUser<ObjectId>((user: any, done) => {
         done(null, user._id);
     });
