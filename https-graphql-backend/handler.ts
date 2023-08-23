@@ -18,7 +18,7 @@ function onExpressServerCreated(app: core.Express) {
   // IMPORTANT: ENVIRONMENT VARIABLES ONLY ARE AVAILABLE HERE AND ON onExpressServerListen
   initializeGooglePassport(app);
   initializeWebPush(app);
-  app.use("/", isLoggedIn, connectionMiddleware, graphqlHTTP(req => ({ schema, graphiql: true, context: req })));
+  app.use("/graphql", isLoggedIn, connectionMiddleware, graphqlHTTP(req => ({ schema, graphiql: true, context: req })));
 }
 
 async function onExpressServerListen(server: https.Server | http.Server) {
