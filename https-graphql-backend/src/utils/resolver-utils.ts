@@ -391,7 +391,7 @@ const generateOutputByResource: Record<RequestSource, (resource: ResourceDbObjec
 
 
 async function pushNotification(resourceName: string, resourceId: ObjectId | null | undefined,
-    createdByUserId: ObjectId | null | undefined, createdByUsername: string | undefined, timestamp: Date, db: Db, session?: ClientSession) {
+    createdByUserId: ObjectId | null | undefined, createdByUsername: string | undefined, timestamp: Date, db: Db, req: express.Request) {
 
 
     // let's notify all the WebPush links associated with the user
@@ -433,7 +433,7 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
                     auth: subscription.keys?.auth ?? "",
                     p256dh: subscription.keys?.p256dh ?? ""
                 }
-            })
+            }, req)
         } catch (e) {
             console.log("ERROR PUSHING", e)
             // Let's delete the bad subscription
