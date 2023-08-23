@@ -25,13 +25,8 @@ function isLoggedIn(req: express.Request, res: express.Response, next: express.N
 
 function initializeGooglePassport(app: express.Express) {
     const {
-        GOOGLE_CLIENT_ID,
-        GOOGLE_CLIENT_SECRET,
-        GOOGLE_CALLBACK_URL,
         MONGO_DB_ENDPOINT,
-        SESSION_SECRET,
-        REDIRECT_URL,
-        WHITELIST_MODE
+        SESSION_SECRET
     } = getLoadedEnvVariables();
     const corsOptions = {
         origin: (origin, next) => {
@@ -62,7 +57,7 @@ function initializeGooglePassport(app: express.Express) {
     app.use(passportMiddleware)
     app.use(passportSessionMiddleware)
 
-    
+
     passport.serializeUser<ObjectId>((user: any, done) => {
         done(null, user._id);
     });
@@ -77,9 +72,6 @@ function initializeGooglePassport(app: express.Express) {
             console.log("error deserializing user", e);
         }
     });
-
-
-    app.get("/", (req, res) => res.json({ message: "You are not logged in" }));
 
 }
 export { initializeGooglePassport, isLoggedIn }
