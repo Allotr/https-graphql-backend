@@ -1,8 +1,7 @@
 
-import { LocalRole, OperationResult, RequestSource, Resolvers, ResourceDbObject, ResourceNotificationDbObject, TicketStatusCode, User, UserDbObject, UserDeletionResult } from "allotr-graphql-schema-types";
+import { LocalRole, OperationResult, Resolvers, ResourceDbObject, ResourceNotificationDbObject, TicketStatusCode, User, UserDbObject, UserDeletionResult } from "allotr-graphql-schema-types";
 import { ObjectId, ReadConcern, ReadPreference, TransactionOptions, WriteConcern } from "mongodb"
 import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
-import { ResourceResolvers } from "./ResourceResolvers";
 import { clearOutQueueDependantTickets, removeUsersInQueue } from "../../utils/resolver-utils";
 import express from "express";
 
@@ -36,8 +35,8 @@ export const UserResolvers: Resolvers = {
   },
   Mutation: {
     deleteUser: async (parent, args, context: express.Request) => {
-      const { deleteAllFlag, userId } = args;
-      if (!new ObjectId(userId).equals(context?.user?._id ?? "")) {
+      const { deleteAllFlag, userIdToDelete } = args;
+      if (!new ObjectId(userIdToDelete).equals(context?.user?._id ?? "")) {
         return { status: OperationResult.Error }
       }
 
@@ -59,9 +58,9 @@ export const UserResolvers: Resolvers = {
 
       for (const resource of userResourceList) {
         try {
-          await clearOutQueueDependantTickets(resource, [{ id: userId, role: LocalRole.ResourceUser }], context, TicketStatusCode.AwaitingConfirmation, db);
-          await clearOutQueueDependantTickets(resource, [{ id: userId, role: LocalRole.ResourceUser }], context, TicketStatusCode.Active, db);
-          await removeUsersInQueue(resource, [{ id: userId, role: LocalRole.ResourceUser }], timestamp, db, context);
+          await clearOutQueueDependantTickets(resource, [{ id: userIdToDelete, role: LocalRole.ResourceUser }], context, TicketStatusCode.AwaitingConfirmation, db);
+          await clearOutQueueDependantTickets(resource, [{ id: userIdToDelete, role: LocalRole.ResourceUser }], context, TicketStatusCode.Active, db);
+          await removeUsersInQueue(resource, [{ id: userIdToDelete, role: LocalRole.ResourceUser }], timestamp, db, context);
         } catch (e) {
           console.log("Some queue dependant resource could not be cleared out");
         }
@@ -81,11 +80,11 @@ export const UserResolvers: Resolvers = {
         await session.withTransaction(async () => {
           // Delete tickets
           await db.collection<ResourceDbObject>(RESOURCES).updateMany({
-            "tickets.user._id": new ObjectId(userId),
+            "tickets.user._id": new ObjectId(userIdToDelete),
           }, {
             $pull: {
               tickets: {
-                "user._id": new ObjectId(userId)
+                "user._id": new ObjectId(userIdToDelete)
               }
             } as any
           }, {
@@ -94,12 +93,12 @@ export const UserResolvers: Resolvers = {
           // Delete resources
           await db.collection<ResourceDbObject>(RESOURCES).deleteMany(
             {
-              "createdBy._id": new ObjectId(userId),
+              "createdBy._id": new ObjectId(userIdToDelete),
               ...(!deleteAllFlag && {
                 $and: [{
                   "tickets.user.role": LocalRole.ResourceUser
                 },
-                { "tickets.user._id": { $ne: new ObjectId(userId) } }]
+                { "tickets.user._id": { $ne: new ObjectId(userIdToDelete) } }]
               })
             }, {
             session
@@ -107,11 +106,11 @@ export const UserResolvers: Resolvers = {
 
           // Delete notifications
           await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).deleteMany({
-            "user._id": new ObjectId(userId ?? "")
+            "user._id": new ObjectId(userIdToDelete ?? "")
           }, { session })
 
           // Delete user
-          await db.collection<UserDbObject>(USERS).deleteOne({ _id: new ObjectId(userId) }, { session })
+          await db.collection<UserDbObject>(USERS).deleteOne({ _id: new ObjectId(userIdToDelete) }, { session })
 
           if (result == null) {
             return { status: OperationResult.Error, newObjectId: null };
