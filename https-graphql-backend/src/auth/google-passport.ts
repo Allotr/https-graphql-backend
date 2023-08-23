@@ -131,34 +131,5 @@ function initializeGooglePassport(app: express.Express) {
 
     app.get("/", (req, res) => res.json({ message: "You are not logged in" }));
 
-    app.get("/failed", (req, res) => res.send("Failed"));
-
-    // Google Oauth
-    app.get("/auth/google",
-        (req, res, next) => {
-            // Save the url of the user's current page so the app can redirect back to it after authorization
-            req.session.returnTo = req.get('referer') ? req.get('referer')! : REDIRECT_URL;
-            next();
-        },
-        passport.authenticate("google", {
-            scope: ["profile", "email"]
-        })
-    );
-
-    app.get('/auth/google/redirect',
-        passport.authenticate('google', {
-            failureRedirect: '/failed',
-            successReturnToOrRedirect: REDIRECT_URL,
-            keepSessionInfo: true
-        }));
-
-    app.get("/auth/google/logout", (req, res, next) => {
-        req.session.destroy((err) => {
-            if (err) {
-                return next(err);
-            }
-            res.redirect(REDIRECT_URL);
-        });
-    });
 }
 export { initializeGooglePassport, isLoggedIn }
