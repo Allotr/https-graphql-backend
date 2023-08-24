@@ -36,7 +36,7 @@ export const UserResolvers: Resolvers = {
   },
   Mutation: {
     deleteUser: async (parent, args, context: express.Request) => {
-      const { deleteAllFlag, userId } = args;
+      const { deleteAllFlag, userIdToDelete: userId } = args;
       if (!new ObjectId(userId).equals(context?.user?._id ?? "")) {
         return { status: OperationResult.Error }
       }
