@@ -29,7 +29,7 @@ function initializeGooglePassport(app: express.Express) {
     const corsOptions = {
         origin: (origin, next) => {
             // Test for main domain and all subdomains
-            if (origin == null || origin === 'https://allotr.eu' || /^https:\/\/\w+?\.allotr\.eu$/gm.test(origin)) {
+            if (origin == null || origin === 'https://allotr.eu' || /^https:\/\/.+?\.allotr\.eu$/gm.test(origin)) {
                 next(null, true)
             } else {
                 next(new Error('Not allowed by CORS'))
