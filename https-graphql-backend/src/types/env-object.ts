@@ -8,5 +8,7 @@ export interface EnvObject extends Record<string,string> {
     REDIS_PORT: string,
     DB_NAME: string,
     HTTPS_PORT: string,
-    WHITELIST_MODE: string
+    WHITELIST_MODE: string,
+    VAPID_PUBLIC_KEY: string,
+    VAPID_PRIVATE_KEY: string
 }

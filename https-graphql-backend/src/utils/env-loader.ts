@@ -11,7 +11,9 @@ function getLoadedEnvVariables(): EnvObject {
         REDIS_PORT: undefined,
         DB_NAME: undefined,
         HTTPS_PORT: undefined,
-        WHITELIST_MODE: undefined
+        WHITELIST_MODE: undefined,
+        VAPID_PUBLIC_KEY: undefined,
+        VAPID_PRIVATE_KEY: undefined
     }
     const loadedVariables = Object.fromEntries(Object.entries(variablesToLoad).map(([key]) => ([key, process.env[key]]))) as EnvObject;
     areVariablesValid(loadedVariables);
