@@ -2,18 +2,15 @@ import { EnvObject } from "../types/env-object";
 
 function getLoadedEnvVariables(): EnvObject {
     const variablesToLoad: Partial<EnvObject> = {
-        GOOGLE_CLIENT_ID: undefined,
-        GOOGLE_CLIENT_SECRET: undefined,
         SESSION_SECRET: undefined,
         REDIRECT_URL: undefined,
         MONGO_DB_ENDPOINT: undefined,
+        VAPID_PUBLIC_KEY: undefined,
+        VAPID_PRIVATE_KEY: undefined,
         REDIS_ENDPOINT: undefined,
         REDIS_PORT: undefined,
         DB_NAME: undefined,
-        HTTPS_PORT: undefined,
-        WHITELIST_MODE: undefined,
-        VAPID_PUBLIC_KEY: undefined,
-        VAPID_PRIVATE_KEY: undefined
+        HTTPS_PORT: undefined
     }
     const loadedVariables = Object.fromEntries(Object.entries(variablesToLoad).map(([key]) => ([key, process.env[key]]))) as EnvObject;
     areVariablesValid(loadedVariables);

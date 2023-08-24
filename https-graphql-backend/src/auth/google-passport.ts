@@ -9,8 +9,6 @@ import MongoStore from 'connect-mongo';
 import { USERS } from "../consts/collections";
 import { getMongoDBConnection } from "../utils/mongodb-connector";
 
-const cors = require('cors');
-
 function isLoggedIn(req: express.Request, res: express.Response, next: express.NextFunction) {
     if (req.user) {
         next();
@@ -20,23 +18,11 @@ function isLoggedIn(req: express.Request, res: express.Response, next: express.N
 }
 
 
-
 function initializeGooglePassport(app: express.Express) {
     const {
         MONGO_DB_ENDPOINT,
         SESSION_SECRET
     } = getLoadedEnvVariables();
-    const corsOptions = {
-        origin: (origin, next) => {
-            // Test for main domain and all subdomains
-            if (origin == null || origin === 'https://allotr.eu' || /^https:\/\/.+?\.allotr\.eu$/gm.test(origin)) {
-                next(null, true)
-            } else {
-                next(new Error('Not allowed by CORS'))
-            }
-        },
-        credentials: true // <-- REQUIRED backend setting
-    };
 
     const sessionMiddleware = session({
         secret: SESSION_SECRET,
@@ -48,8 +34,6 @@ function initializeGooglePassport(app: express.Express) {
 
     const passportMiddleware = passport.initialize();
     const passportSessionMiddleware = passport.session();
-
-    app.use(cors(corsOptions));
 
     app.use(sessionMiddleware)
     app.use(passportMiddleware)

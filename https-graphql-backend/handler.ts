@@ -10,6 +10,7 @@ import { initializeWebPush } from "./src/notifications/web-push";
 import { connectionMiddleware } from "./src/utils/connection-utils";
 import { parse } from "graphql";
 import { compileQuery } from "graphql-jit";
+import { initializeCORS } from "src/cors/cors-middleware";
 
 async function handle(event: any, context: any, cb: any) {
   // When using graphqlHTTP this is not being executed
@@ -18,9 +19,10 @@ async function handle(event: any, context: any, cb: any) {
 function onExpressServerCreated(app: core.Express) {
   // Create GraphQL HTTP server
   // IMPORTANT: ENVIRONMENT VARIABLES ONLY ARE AVAILABLE HERE AND ON onExpressServerListen
-  const cache = {};
+  initializeCORS(app);
   initializeGooglePassport(app);
   initializeWebPush(app);
+  const cache = {};
   app.use("/graphql", isLoggedIn, connectionMiddleware,
     // graphqlHTTP(req => ({ schema, graphiql: true, context: req })),
     graphqlHTTP((req, res, params) => {
