@@ -10,7 +10,7 @@ import { initializeWebPush } from "./src/notifications/web-push";
 import { connectionMiddleware } from "./src/utils/connection-utils";
 import { parse } from "graphql";
 import { compileQuery } from "graphql-jit";
-import { initializeCORS } from "src/cors/cors-middleware";
+import { initializeCORS } from "./src/cors/cors-middleware";
 
 async function handle(event: any, context: any, cb: any) {
   // When using graphqlHTTP this is not being executed
