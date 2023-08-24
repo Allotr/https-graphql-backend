@@ -48,9 +48,9 @@ function onExpressServerCreated(app: core.Express) {
 
 async function onExpressServerListen(server: https.Server | http.Server) {
   // MongoDB Connection
-  const { IS_HTTPS, HTTPS_PORT } = getLoadedEnvVariables();
+  const { HTTPS_PORT } = getLoadedEnvVariables();
 
-  console.log(`GraphQL server running using ${Boolean(IS_HTTPS) ? "HTTPS" : "HTTP"} on port ${HTTPS_PORT}`);
+  console.log(`GraphQL server running using on port ${HTTPS_PORT}`);
 }
 
 
