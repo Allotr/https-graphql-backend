@@ -1,11 +1,11 @@
 import { OperationResult, ResourceDbObject, UserDbObject, LocalRole, TicketStatusCode, RequestSource, ResourceManagementResult, ResourceNotificationDbObject, ResourceUser } from "allotr-graphql-schema-types";
-import { ObjectId, ClientSession, Db } from "mongodb";
-import { generateChannelId, getLastQueuePosition, getLastStatus } from "./data-util";
+import { ObjectId, ClientSession, Db, ReadPreference, WriteConcern, ReadConcern, TransactionOptions } from "mongodb"
+import { generateChannelId, getLastQueuePosition, getLastStatus, getFirstQueuePosition } from "./data-util";
+import { canRequestStatusChange } from "../guards/guards";
 import { NOTIFICATIONS, RESOURCES, USERS } from "../consts/collections";
 import { sendNotification } from "../notifications/web-push";
 import { RESOURCE_READY_TO_PICK } from "../consts/connection-tokens";
 import { getRedisConnection } from "./redis-connector";
-import { ResourceResolvers } from "../graphql/resolvers/ResourceResolvers";
 import express from "express";
 async function getUserTicket(userId: string | ObjectId, resourceId: string, db: Db, session?: ClientSession): Promise<ResourceDbObject | null> {
     const [parsedUserId, parsedResourceId] = [new ObjectId(userId), new ObjectId(resourceId)];
@@ -203,8 +203,138 @@ async function clearOutQueueDependantTickets(
 ) {
 
     const functionMap: Record<typeof status, Function> = {
-        ACTIVE: (ResourceResolvers as any)?.Mutation?.releaseResource as Function,
-        AWAITING_CONFIRMATION: (ResourceResolvers as any)?.Mutation?.cancelResourceAcquire
+        ACTIVE: async (parent, args, context: express.Request) => {
+            const { requestFrom, resourceId } = args
+            let timestamp = new Date();
+
+            const client = await (await context.mongoDBConnection).connection;
+            const db = await (await context.mongoDBConnection).db;
+
+            let result: ResourceManagementResult = { status: OperationResult.Ok };
+
+            // Step 1: Start a Client Session
+            const session = client.startSession();
+            // Step 2: Optional. Define options to use for the transaction
+            const transactionOptions: TransactionOptions = {
+                readPreference: new ReadPreference(ReadPreference.PRIMARY),
+                readConcern: new ReadConcern("local"),
+                writeConcern: new WriteConcern("majority")
+            };
+            // Step 3: Use withTransaction to start a transaction, execute the callback, and commit (or abort on error)
+            // Note: The callback for withTransaction MUST be async and/or return a Promise.
+            try {
+                await session.withTransaction(async () => {
+                    // Check if we can request the resource right now
+                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Inactive, timestamp, db, session);
+                    if (!canRequest) {
+                        result = { status: OperationResult.Error }
+                        throw result;
+                    }
+                    // Change status to inactive
+                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Inactive, timestamp }, session, db, previousStatusCode);
+
+
+                    // Notify our next in queue user
+                    await notifyFirstInQueue(resourceId, timestamp, firstQueuePosition, db, session);
+                }, transactionOptions);
+            } finally {
+                await session.endSession();
+            }
+            if (result.status === OperationResult.Error) {
+                return result;
+            }
+
+
+            // Here comes the notification code
+
+
+            // Once the session is ended, let's get and return our new data
+
+            const resource = await getResource(resourceId, db)
+            if (resource == null) {
+                return { status: OperationResult.Error }
+            }
+
+            await pushNotification(resource?.name, resource?._id, resource?.createdBy?._id, resource?.createdBy?.username, timestamp, db);
+
+
+            // Status changed, now let's return the new resource
+            return generateOutputByResource[requestFrom](resource, new ObjectId(context?.user?._id ?? ""), resourceId, db);
+        },
+        AWAITING_CONFIRMATION: async (parent, args, context: express.Request) => {
+            const { resourceId } = args
+            let timestamp = new Date();
+
+            const client = await (await context.mongoDBConnection).connection;
+            const db = await (await context.mongoDBConnection).db;
+
+            let result: ResourceManagementResult = { status: OperationResult.Ok };
+
+            // Step 1: Start a Client Session
+            const session = client.startSession();
+            // Step 2: Optional. Define options to use for the transaction
+            const transactionOptions: TransactionOptions = {
+                readPreference: new ReadPreference(ReadPreference.PRIMARY),
+                readConcern: new ReadConcern("local"),
+                writeConcern: new WriteConcern("majority")
+            };
+            // Step 3: Use withTransaction to start a transaction, execute the callback, and commit (or abort on error)
+            // Note: The callback for withTransaction MUST be async and/or return a Promise.
+            try {
+                await session.withTransaction(async () => {
+                    // Check if we can request the resource right now
+                    const { canRequest, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Inactive, timestamp, db, session);
+                    if (!canRequest) {
+                        result = { status: OperationResult.Error }
+                        throw result;
+                    }
+                    // Remove our awaiting confirmation
+                    await removeAwaitingConfirmation(resourceId, firstQueuePosition, session, db)
+                }, transactionOptions);
+            } finally {
+                await session.endSession();
+            }
+
+            // // Step 1: Start a Client Session
+            const session2 = client.startSession();
+
+            try {
+                await session2.withTransaction(async () => {
+                    // Check if we can request the resource right now
+                    const { canRequest, ticketId, previousStatusCode, firstQueuePosition } = await canRequestStatusChange(new ObjectId(context?.user?._id ?? ""), resourceId, TicketStatusCode.Queued, timestamp, db, session2);
+                    if (!canRequest) {
+                        result = { status: OperationResult.Error }
+                        throw result;
+                    }
+                    // Change status to active
+                    // Move people forward in the queue
+                    await forwardQueue(resourceId, timestamp, session2, db);
+                    await pushNewStatus(resourceId, ticketId, { statusCode: TicketStatusCode.Inactive, timestamp }, session2, db, previousStatusCode);
+
+
+                }, transactionOptions);
+            } finally {
+                await session2.endSession();
+            }
+            if (result.status === OperationResult.Error) {
+                return result;
+            }
+
+            // Once the session is ended, let's get and return our new data
+
+            const resource = await getResource(resourceId, db)
+            if (resource == null) {
+                return { status: OperationResult.Error }
+            }
+
+            const firstQueuePosition = getFirstQueuePosition(resource?.tickets ?? []);
+            await notifyFirstInQueue(resourceId, timestamp, firstQueuePosition, db);
+
+            await pushNotification(resource?.name, resource?._id, resource?.createdBy?._id, resource?.createdBy?.username, timestamp, db);
+
+            // Status changed, now let's return the new resource
+            return generateOutputByResource["HOME"](resource, new ObjectId(context?.user?._id ?? ""), resourceId, db);
+        }
     }
 
     const argMap: Record<typeof status, Function> = {
