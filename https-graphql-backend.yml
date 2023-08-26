@@ -4,7 +4,7 @@ provider:
   gateway: https://openfaas.allotr.eu
 functions:
   https-graphql-backend:
-    lang: node-typescript-express
+    lang: node-typescript-uwebsockets
     handler: ./https-graphql-backend
     image: rafaelpernil/https-graphql-backend:latest
     secrets:
