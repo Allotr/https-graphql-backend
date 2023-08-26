@@ -6,7 +6,7 @@ import { sendNotification } from "../notifications/web-push";
 import { RESOURCE_READY_TO_PICK } from "../consts/connection-tokens";
 import { getRedisConnection } from "./redis-connector";
 import { ResourceResolvers } from "../graphql/resolvers/ResourceResolvers";
-import express from "express";
+import { GraphQLContext } from "../types/yoga-context";
 async function getUserTicket(userId: string | ObjectId, resourceId: string, db: Db, session?: ClientSession): Promise<ResourceDbObject | null> {
     const [parsedUserId, parsedResourceId] = [new ObjectId(userId), new ObjectId(resourceId)];
 
@@ -196,7 +196,7 @@ async function forwardQueue(
 async function clearOutQueueDependantTickets(
     resource: ResourceDbObject,
     userList: ResourceUser[],
-    context: express.Request,
+    context: GraphQLContext,
     status: typeof TicketStatusCode.Active | typeof TicketStatusCode.AwaitingConfirmation,
     db: Db,
     session?: ClientSession
@@ -235,7 +235,7 @@ async function clearOutQueueDependantTickets(
 }
 
 async function removeUsersInQueue(resource: ResourceDbObject, userList: ResourceUser[], timestamp: Date,
-    db: Db, context: Express.Request, session?: ClientSession) {
+    db: Db, context: GraphQLContext, session?: ClientSession) {
 
     const deletionUsersQueuePosition = userList
         .map<number>(
@@ -472,4 +472,4 @@ async function pushNotification(resourceName: string, resourceId: ObjectId | nul
 
 }
 
-export { getUserTicket, getResource, pushNewStatus, enqueue, forwardQueue, notifyFirstInQueue, generateOutputByResource, clearOutQueueDependantTickets, pushNotification, getAwaitingTicket, removeAwaitingConfirmation, removeUsersInQueue }
+export { getUser, getUserTicket, getResource, pushNewStatus, enqueue, forwardQueue, notifyFirstInQueue, generateOutputByResource, clearOutQueueDependantTickets, pushNotification, getAwaitingTicket, removeAwaitingConfirmation, removeUsersInQueue }

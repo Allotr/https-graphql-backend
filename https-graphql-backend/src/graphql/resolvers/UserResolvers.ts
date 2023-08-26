@@ -1,21 +1,27 @@
 
-import { LocalRole, OperationResult, RequestSource, Resolvers, ResourceDbObject, ResourceNotificationDbObject, TicketStatusCode, User, UserDbObject, UserDeletionResult } from "allotr-graphql-schema-types";
+import { LocalRole, OperationResult, Resolvers, ResourceDbObject, ResourceNotificationDbObject, TicketStatusCode, User, UserDbObject, UserDeletionResult } from "allotr-graphql-schema-types";
 import { ObjectId, ReadConcern, ReadPreference, TransactionOptions, WriteConcern } from "mongodb"
 import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
-import { ResourceResolvers } from "./ResourceResolvers";
 import { clearOutQueueDependantTickets, removeUsersInQueue } from "../../utils/resolver-utils";
-import express from "express";
+import { GraphQLContext } from "../../types/yoga-context";
+import { isLoggedIn } from "../../middlewares/auth";
+import { GraphQLError } from "graphql";
 
 
 export const UserResolvers: Resolvers = {
   Query: {
-    currentUser: async (parent, args, context: express.Request) => {
+    currentUser: async (parent, args, context: GraphQLContext) => {
+      isLoggedIn(context);
       const db = await (await context.mongoDBConnection).db;
       const idToSearch = new ObjectId(context?.user?._id ?? "");
       const user = await db.collection<UserDbObject>(USERS).findOne({ _id: idToSearch });
-      return user;
+      if (user == null) {
+        throw new GraphQLError("Cannot read user")
+      }
+      return user! as User;
     },
-    searchUsers: async (parent, args, context: express.Request) => {
+    searchUsers: async (parent, args, context: GraphQLContext) => {
+      isLoggedIn(context);
       const db = await (await context.mongoDBConnection).db;
 
       const usersFound = await db.collection<UserDbObject>(USERS).find(
@@ -30,7 +36,7 @@ export const UserResolvers: Resolvers = {
       }).toArray();
 
       const userData = usersFound.map(({ _id, username = "", name = "", surname = "" }) => ({
-        id: _id?.toHexString(),
+        id: _id?.toHexString()!,
         username,
         name,
         surname
@@ -40,7 +46,8 @@ export const UserResolvers: Resolvers = {
     }
   },
   Mutation: {
-    deleteUser: async (parent, args, context: express.Request) => {
+    deleteUser: async (parent, args, context: GraphQLContext) => {
+      isLoggedIn(context);
       const { deleteAllFlag, userIdToDelete: userId } = args;
       if (!new ObjectId(userId).equals(context?.user?._id ?? "")) {
         return { status: OperationResult.Error }
@@ -129,9 +136,7 @@ export const UserResolvers: Resolvers = {
         return result;
       }
       // Close session before it's too late!
-      context.logout((_) => {
-        // Implement if needed
-      });
+      context.logout(context.sid);
       return { status: OperationResult.Ok }
     }
   }

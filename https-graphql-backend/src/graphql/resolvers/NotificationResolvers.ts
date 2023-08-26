@@ -1,12 +1,14 @@
 
 import { Resolvers, TicketStatusCode, ResourceNotification, ResourceNotificationDbObject } from "allotr-graphql-schema-types";
 import { NOTIFICATIONS } from "../../consts/collections";
-import express from "express";
+import { GraphQLContext } from "../../types/yoga-context";
+import { isLoggedIn } from "../../middlewares/auth";
 
 
 export const NotificationResolvers: Resolvers = {
     Query: {
-        myNotificationData: async (parent, args, context: express.Request) => {
+        myNotificationData: async (parent, args, context: GraphQLContext) => {
+            isLoggedIn(context);
             const db = await (await context.mongoDBConnection).db;
 
             const userNotifications = await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).find({

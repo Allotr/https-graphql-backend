@@ -4,15 +4,17 @@ import { ObjectId, ReadPreference, WriteConcern, ReadConcern, TransactionOptions
 import { categorizeArrayData, customTryCatch, getFirstQueuePosition, getLastStatus } from "../../utils/data-util";
 import { CustomTryCatch } from "../../types/custom-try-catch";
 import { canRequestStatusChange, hasAdminAccessInResource } from "../../guards/guards";
-import { enqueue, forwardQueue, generateOutputByResource, getResource, pushNotification, notifyFirstInQueue, pushNewStatus, removeAwaitingConfirmation, removeUsersInQueue, clearOutQueueDependantTickets } from "../../utils/resolver-utils";
+import { enqueue, forwardQueue, generateOutputByResource, getResource, pushNotification, notifyFirstInQueue, pushNewStatus, removeAwaitingConfirmation, removeUsersInQueue, clearOutQueueDependantTickets, getUser } from "../../utils/resolver-utils";
 import { NOTIFICATIONS, RESOURCES, USERS } from "../../consts/collections";
-import express from "express";
 import { CategorizedArrayData } from "../../types/categorized-array-data";
+import { GraphQLContext } from "../../types/yoga-context";
+import { isLoggedIn } from "../../middlewares/auth";
 
 
 export const ResourceResolvers: Resolvers = {
     Query: {
-        myResources: async (parent, args, context: express.Request) => {
+        myResources: async (parent, args, context: GraphQLContext) => {
+            isLoggedIn(context);
             const db = await (await context.mongoDBConnection).db;
 
 
@@ -61,8 +63,8 @@ export const ResourceResolvers: Resolvers = {
 
             return resourceList;
         },
-        viewResource: async (parent, args, context: express.Request) => {
-
+        viewResource: async (parent, args, context: GraphQLContext) => {
+            isLoggedIn(context);
             const { resourceId } = args;
             const db = await (await context.mongoDBConnection).db;
             const myResource = await db.collection<ResourceDbObject>(RESOURCES).findOne({
@@ -148,7 +150,8 @@ export const ResourceResolvers: Resolvers = {
     },
     Mutation: {
         // Resource CRUD operations
-        createResource: async (parent, args, context: express.Request) => {
+        createResource: async (parent, args, context: GraphQLContext) => {
+            isLoggedIn(context);
             const { name, description, maxActiveTickets, userList } = args.resource
             const timestamp = new Date();
 
@@ -182,6 +185,16 @@ export const ResourceResolvers: Resolvers = {
             }
             const userNameMap = Object.fromEntries(userListResult.map(([id, { result: user }]) => [id, user?.username ?? ""]));
 
+            const fullUser = await getUser(context.user._id, db);
+            if (fullUser == null){
+                return {
+                    status: OperationResult.Error,
+                    errorCode: ErrorCode.BadData,
+                    errorMessage: "Current user does not exist",
+                    newObjectId: null
+                }
+            }
+
             // Find all results
             const newResource = {
                 creationDate: timestamp,
@@ -197,7 +210,7 @@ export const ResourceResolvers: Resolvers = {
                     ],
                     user: { role, _id: new ObjectId(id), username: userNameMap?.[id] },
                 })),
-                createdBy: { _id: new ObjectId(context?.user?._id ?? ""), username: context.user.username },
+                createdBy: { _id: new ObjectId(context?.user?._id ?? ""), username: fullUser.username },
                 activeUserCount: 0
             }
             const result = await db.collection<ResourceDbObject>(RESOURCES).insertOne(newResource);
@@ -208,7 +221,8 @@ export const ResourceResolvers: Resolvers = {
 
             return { status: OperationResult.Ok, newObjectId: result.insertedId.toHexString() };
         },
-        updateResource: async (parent, args, context: express.Request) => {
+        updateResource: async (parent, args, context: GraphQLContext) => {
+            isLoggedIn(context);
             const { name, description, maxActiveTickets, userList: newUserList, id } = args.resource
             const timestamp = new Date();
             const db = await (await context.mongoDBConnection).db;
@@ -355,12 +369,13 @@ export const ResourceResolvers: Resolvers = {
                 return result;
             }
 
-            context.cache.invalidate([{ typename: 'ResourceView', id }])
-            context.cache.invalidate([{ typename: 'ResourceCard', id }])
+            context?.cache?.invalidate([{ typename: 'ResourceView', id }])
+            context?.cache?.invalidate([{ typename: 'ResourceCard', id }])
 
             return { status: OperationResult.Ok };
         },
-        deleteResource: async (parent, args, context: express.Request) => {
+        deleteResource: async (parent, args, context: GraphQLContext) => {
+            isLoggedIn(context);
             const { resourceId } = args
             const db = await (await context.mongoDBConnection).db;
 
@@ -382,14 +397,15 @@ export const ResourceResolvers: Resolvers = {
                 return { status: OperationResult.Error }
             }
 
-            context.cache.invalidate([{ typename: 'ResourceView', id: resourceId }])
-            context.cache.invalidate([{ typename: 'ResourceCard', id: resourceId }])
+            context?.cache?.invalidate([{ typename: 'ResourceView', id: resourceId }])
+            context?.cache?.invalidate([{ typename: 'ResourceCard', id: resourceId }])
 
             return { status: OperationResult.Ok };
         },
 
         // Resource management operations
-        requestResource: async (parent, args, context: express.Request) => {
+        requestResource: async (parent, args, context: GraphQLContext) => {
+            isLoggedIn(context);
             const { requestFrom, resourceId } = args
             let timestamp = new Date();
 
@@ -458,13 +474,14 @@ export const ResourceResolvers: Resolvers = {
                 return { status: OperationResult.Error }
             }
 
-            context.cache.invalidate([{ typename: 'ResourceView', id: resourceId }])
-            context.cache.invalidate([{ typename: 'ResourceCard', id: resourceId }])
+            context?.cache?.invalidate([{ typename: 'ResourceView', id: resourceId }])
+            context?.cache?.invalidate([{ typename: 'ResourceCard', id: resourceId }])
 
             // Status changed, now let's return the new resource
             return generateOutputByResource[requestFrom](resource, new ObjectId(context?.user?._id ?? ""), resourceId, db);
         },
-        acquireResource: async (parent, args, context: express.Request) => {
+        acquireResource: async (parent, args, context: GraphQLContext) => {
+            isLoggedIn(context);
             const { resourceId } = args
             let timestamp = new Date();
 
@@ -530,13 +547,14 @@ export const ResourceResolvers: Resolvers = {
                 return { status: OperationResult.Error }
             }
 
-            context.cache.invalidate([{ typename: 'ResourceView', id: resourceId }])
-            context.cache.invalidate([{ typename: 'ResourceCard', id: resourceId }])
+            context?.cache?.invalidate([{ typename: 'ResourceView', id: resourceId }])
+            context?.cache?.invalidate([{ typename: 'ResourceCard', id: resourceId }])
 
             // Status changed, now let's return the new resource
             return generateOutputByResource["HOME"](resource, new ObjectId(context?.user?._id ?? ""), resourceId, db);
         },
-        cancelResourceAcquire: async (parent, args, context: express.Request) => {
+        cancelResourceAcquire: async (parent, args, context: GraphQLContext) => {
+            isLoggedIn(context);
             const { resourceId } = args
             let timestamp = new Date();
 
@@ -607,13 +625,14 @@ export const ResourceResolvers: Resolvers = {
 
             await pushNotification(resource?.name, resource?._id, resource?.createdBy?._id, resource?.createdBy?.username, timestamp, db);
 
-            context.cache.invalidate([{ typename: 'ResourceView', id: resourceId }])
-            context.cache.invalidate([{ typename: 'ResourceCard', id: resourceId }])
+            context?.cache?.invalidate([{ typename: 'ResourceView', id: resourceId }])
+            context?.cache?.invalidate([{ typename: 'ResourceCard', id: resourceId }])
 
             // Status changed, now let's return the new resource
             return generateOutputByResource["HOME"](resource, new ObjectId(context?.user?._id ?? ""), resourceId, db);
         },
-        releaseResource: async (parent, args, context: express.Request) => {
+        releaseResource: async (parent, args, context: GraphQLContext) => {
+            isLoggedIn(context);
             const { requestFrom, resourceId } = args
             let timestamp = new Date();
 
@@ -668,8 +687,8 @@ export const ResourceResolvers: Resolvers = {
             await pushNotification(resource?.name, resource?._id, resource?.createdBy?._id, resource?.createdBy?.username, timestamp, db);
 
 
-            context.cache.invalidate([{ typename: 'ResourceView', id: resourceId }])
-            context.cache.invalidate([{ typename: 'ResourceCard', id: resourceId }])
+            context?.cache?.invalidate([{ typename: 'ResourceView', id: resourceId }])
+            context?.cache?.invalidate([{ typename: 'ResourceCard', id: resourceId }])
 
 
             // Status changed, now let's return the new resource
