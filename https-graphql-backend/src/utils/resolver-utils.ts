@@ -375,7 +375,7 @@ const generateOutputByResource: Record<RequestSource, (resource: ResourceDbObjec
                 statusCode: statusCode as TicketStatusCode,
                 role: myTicket.user?.role as LocalRole,
                 ticketId: myTicket._id?.toHexString(),
-                resourceId
+                id: resourceId
             }
         }
     },

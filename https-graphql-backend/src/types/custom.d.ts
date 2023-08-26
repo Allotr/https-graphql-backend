@@ -8,6 +8,7 @@ declare module "express-serve-static-core" {
         mongoDBConnection: Promise<{ connection: Promise<MongoClient>, db: Promise<Db> }>;
         redisConnection: { pubsub: RedisPubSub };
         user: UserDbObject;
+        cache: UseResponseCacheParameter["cache"]
     }
 }
 

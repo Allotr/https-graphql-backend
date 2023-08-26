@@ -9,7 +9,12 @@ import express from "express";
 
 export const UserResolvers: Resolvers = {
   Query: {
-    currentUser: (parent, args, context: express.Request) => context.user as User,
+    currentUser: async (parent, args, context: express.Request) => {
+      const db = await (await context.mongoDBConnection).db;
+      const idToSearch = new ObjectId(context?.user?._id ?? "");
+      const user = await db.collection<UserDbObject>(USERS).findOne({ _id: idToSearch });
+      return user;
+    },
     searchUsers: async (parent, args, context: express.Request) => {
       const db = await (await context.mongoDBConnection).db;
 
