@@ -252,7 +252,7 @@ async function removeUsersInQueue(resource: ResourceDbObject, userList: Resource
             }
         )
         .filter(value => value !== -1)
-        .sort();
+        .sort((a,b) => a - b);
     for (let index = 0; index < deletionUsersQueuePosition.length; index++) {
         const queuePosition = deletionUsersQueuePosition[index];
         const nextQueuePosition = deletionUsersQueuePosition?.[index + 1] ?? Number.MAX_SAFE_INTEGER;
@@ -279,7 +279,7 @@ async function removeUsersInQueue(resource: ResourceDbObject, userList: Resource
     await db.collection<ResourceNotificationDbObject>(NOTIFICATIONS).deleteMany({
         "resource._id": new ObjectId(resource._id ?? ""),
         "user._id": {
-            $in: [...userList?.map(({ id }) => !!id ? new ObjectId(id) : null).filter(Boolean)]
+            $in: [...(userList ?? []).map(({ id }) => !!id ? new ObjectId(id) : null).filter(Boolean)]
         }
     }, { session })
 
@@ -289,7 +289,7 @@ async function removeUsersInQueue(resource: ResourceDbObject, userList: Resource
     }, {
         $pull: {
             tickets: {
-                "user._id": { $in: [...userList?.map(({ id }) => !!id ? new ObjectId(id) : null).filter(Boolean)] }
+                "user._id": { $in: [...(userList ?? []).map(({ id }) => !!id ? new ObjectId(id) : null).filter(Boolean)] }
             }
         } as any
     }, {
